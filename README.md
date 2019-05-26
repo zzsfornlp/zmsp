@@ -1,2 +1,16 @@
-# zmsp
-The Mingled Structured Predictor
+### the Mingled Structured Predictor (zmsp)
+
+Hi, here are some tools possibly useful for Structured Prediction tasks.
+
+-----
+
+Requirements and how to run, generally: [here](docs/run.md)
+
+How to configurate, generally: [here](docs/conf.md)
+
+-----
+
+Related works:
+
+"An Empirical Investigation of Structured Output Modeling for Graph-based Neural Dependency Parsing": [details](docs/emp_graph.md)
+

@@ -1,0 +1,11 @@
+# for this part of scripts
+
+# -----
+Write in the language of Python, and can almost run by themselves.
++ Each directory forms a small package (usually using a common.py), no more hierarchical structures.
+
+maybe A copy of the shared routines is in common.py
+
+# par/prep:
+- bash setup.sh can prepare well all the files of PTB/CTB/UD.
+
