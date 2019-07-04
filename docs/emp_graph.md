@@ -2,11 +2,11 @@
 
 Hi, this describes our implementation for our ACL-2019 paper: "An Empirical Investigation of Structured Output Modeling for Graph-based Neural Dependency Parsing". 
 
-Please refer to the paper for more details: [[paper]]() [[bib]]()
+Please refer to the paper for more details: [[paper]](TODO) [[bib]](TODO)
 
 ### Repo
 
-When we were carrying out our experiments for this work, we used the repo at this commit [here](?). In later versions of this repo, there may be slight changes (for example, default hyper-parameter change).
+When we were carrying out our experiments for this work, we used the repo at this commit [`here`](https://github.com/zzsfornlp/zmsp/commit/ecf5dc2d87abed430f52f154c16c42e9c809c844). In later versions of this repo, there may be slight changes (for example, default hyper-parameter change or hyper-parameter name change).
 
 ### Environment
 
