@@ -2,7 +2,7 @@
 
 Hi, this describes our implementation for our ACL-2019 paper: "An Empirical Investigation of Structured Output Modeling for Graph-based Neural Dependency Parsing". 
 
-Please refer to the paper for more details: [[paper]](TODO) [[bib]](TODO)
+Please refer to the paper for more details: [[paper]](https://www.aclweb.org/anthology/P19-1562) [[bib]](https://aclweb.org/anthology/papers/P/P19/P19-1562.bib)
 
 ### Repo
 
