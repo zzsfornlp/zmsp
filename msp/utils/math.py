@@ -1,6 +1,9 @@
 #
 import numpy as np
-from scipy.misc import logsumexp as scipy_logsumexp
+try:
+    from scipy.misc import logsumexp as scipy_logsumexp
+except:
+    from scipy.special import logsumexp as scipy_logsumexp
 from math import isclose as math_isclose, exp as math_exp
 
 class MathHelper(object):

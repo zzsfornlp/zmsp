@@ -2,16 +2,18 @@
 
 # mostly used for encoders
 
+import numpy as np
+from typing import List
+
 from ..backends import BK
 from .basic import BasicNode, Dropout, ActivationHelper
-from .att import MultiHeadAttention, MultiHeadFixedAttention
+from .att import AttentionNode, AttConf
 from .ff import LayerNorm
-from .multi import AddNormWrapper, AddActWrapper, get_mlp
-
-import numpy as np
+from .multi import AddNormWrapper, AddActWrapper, get_mlp, GatedMixer
 
 # # rnn nodes
-# [inputs] or input + {"H":hidden, "C":(optional)cell} -> {"H":hidden, "C":(optional)cell}
+# OLD: [inputs] or input + {"H":hidden, "C":(optional)cell} -> {"H":hidden, "C":(optional)cell}
+# todo(note): change to new format of tuple (hidden, (optional) cell)!
 # no output drops
 class RnnNode(BasicNode):
     def __init__(self, pc, n_input, n_hidden, name=None, init_rop=None):
@@ -25,8 +27,7 @@ class RnnNode(BasicNode):
     def zero_init_hidden(self, bsize):
         raise NotImplementedError()
 
-    def __call__(self, input_exp, hidden_exp, mask):
-        # todo(warn): return a {}
+    def __call__(self, input_exp, hidden_exp_tuple, mask):
         raise NotImplementedError()
 
     def __repr__(self):
@@ -65,10 +66,11 @@ class GruNode(RnnNode):
         self.bh = self.add_param("bh", (self.n_hidden, ))
 
     # input: value, hidden: dict of value
-    def __call__(self, input_exp, hidden_exp, mask):
+    def __call__(self, input_exp, hidden_exp_tuple, mask):
         input_exp = self.idrop_node(input_exp)
-        # todo(warn): only using "H"
-        hidden_exp_h = self.gdrop_node(hidden_exp["H"])
+        # todo(warn): only using [0]
+        orig_hidden_exp_h = hidden_exp_tuple[0]
+        hidden_exp_h = self.gdrop_node(orig_hidden_exp_h)
         #
         rzt = BK.affine([self.brz, self.x2rz, input_exp, self.h2rz, hidden_exp_h])
         rzt = BK.sigmoid(rzt)
@@ -77,14 +79,15 @@ class GruNode(RnnNode):
         ht = BK.affine([self.bh, self.x2h, input_exp, self.h2h, h_reset])
         ht = BK.tanh(ht)
         # hidden = BK.cmult(zt, hidden_exp["H"]) + BK.cmult((1. - zt), ht)     # first one use original hh
-        hidden = ht + zt * (hidden_exp["H"] - ht)
+        hidden = ht + zt * (orig_hidden_exp_h - ht)
         if mask is not None:
-            hidden = self._apply_mask(mask, hidden, hidden_exp["H"])
-        return {"H": hidden}
+            hidden = self._apply_mask(mask, hidden, orig_hidden_exp_h)
+        return (hidden, )
 
     def zero_init_hidden(self, bsize):
-        return {"H": BK.zeros((bsize, self.n_hidden))}
+        return (BK.zeros((bsize, self.n_hidden)), )
 
+# todo(+N): get strangely large scaled values from this one!
 class GruNode2(RnnNode):
     def __init__(self, pc, n_input, n_hidden, name=None, init_rop=None):
         super(GruNode2, self).__init__(pc, n_input, n_hidden, name, init_rop)
@@ -93,17 +96,18 @@ class GruNode2(RnnNode):
         self.xb = self.add_param("xb", (3*self.n_hidden, ))
         self.hb = self.add_param("hb", (3*self.n_hidden, ))
 
-    def __call__(self, input_exp, hidden_exp, mask):
+    def __call__(self, input_exp, hidden_exp_tuple, mask):
         input_exp = self.idrop_node(input_exp)
-        hidden_exp_h = self.gdrop_node(hidden_exp["H"])
+        orig_hidden_exp_h = hidden_exp_tuple[0]
+        hidden_exp_h = self.gdrop_node(orig_hidden_exp_h)
         #
-        hidden = BK.lstm_oper(input_exp, hidden_exp_h, self.x2h, self.h2h, self.xb, self.hb)
+        hidden = BK.gru_oper(input_exp, hidden_exp_h, self.x2h, self.h2h, self.xb, self.hb)
         if mask is not None:
-            hidden = self._apply_mask(mask, hidden, hidden_exp["H"])
-        return {"H": hidden}
+            hidden = self._apply_mask(mask, hidden, orig_hidden_exp_h)
+        return (hidden, )
 
     def zero_init_hidden(self, bsize):
-        return {"H": BK.zeros((bsize, self.n_hidden))}
+        return (BK.zeros((bsize, self.n_hidden)), )
 
 class LstmNode(RnnNode):
     def __init__(self, pc, n_input, n_hidden, name=None, init_rop=None):
@@ -113,9 +117,10 @@ class LstmNode(RnnNode):
         self.hw = self.add_param("hw", (4*self.n_hidden, n_hidden), init="ortho")
         self.b = self.add_param("b", (4*self.n_hidden, ))
 
-    def __call__(self, input_exp, hidden_exp, mask):
+    def __call__(self, input_exp, hidden_exp_tuple, mask):
         input_exp = self.idrop_node(input_exp)
-        hidden_exp_h = self.gdrop_node(hidden_exp["H"])
+        orig_h, orig_c = hidden_exp_tuple
+        hidden_exp_h = self.gdrop_node(orig_h)
         #
         ifco = BK.affine([self.b, self.xw, input_exp, self.hw, hidden_exp_h])
         i_t, f_t, g_t, o_t = BK.chunk(ifco, 4)
@@ -123,16 +128,16 @@ class LstmNode(RnnNode):
         f_t = BK.sigmoid(f_t)
         g_t = BK.tanh(g_t)
         o_t = BK.sigmoid(o_t)
-        c_t = BK.cmult(f_t, hidden_exp["C"]) + BK.cmult(i_t, g_t)
+        c_t = BK.cmult(f_t, orig_c) + BK.cmult(i_t, g_t)
         hidden = BK.cmult(o_t, BK.tanh(c_t))
         if mask is not None:
-            hidden = self._apply_mask(mask, hidden, hidden_exp["H"])
-            c_t = self._apply_mask(mask, c_t, hidden_exp["C"])
-        return {"H": hidden, "C": c_t}
+            hidden = self._apply_mask(mask, hidden, orig_h)
+            c_t = self._apply_mask(mask, c_t, orig_c)
+        return (hidden, c_t)
 
     def zero_init_hidden(self, bsize):
         z0 = BK.zeros((bsize, self.n_hidden))
-        return {"H": z0, "C": z0}
+        return (z0, z0)
 
 class LstmNode2(RnnNode):
     def __init__(self, pc, n_input, n_hidden, name=None, init_rop=None):
@@ -143,19 +148,20 @@ class LstmNode2(RnnNode):
         self.xb = self.add_param("xb", (4*self.n_hidden, ))
         self.hb = self.add_param("hb", (4*self.n_hidden, ))
 
-    def __call__(self, input_exp, hidden_exp, mask):
+    def __call__(self, input_exp, hidden_exp_tuple, mask):
         input_exp = self.idrop_node(input_exp)
-        hidden_exp_h = self.gdrop_node(hidden_exp["H"])
+        orig_h, orig_c = hidden_exp_tuple
+        hidden_exp_h = self.gdrop_node(orig_h)
         #
-        hidden, c_t = BK.lstm_oper(input_exp, (hidden_exp_h, hidden_exp["C"]), self.xw, self.hw, self.xb, self.hb)
+        hidden, c_t = BK.lstm_oper(input_exp, (hidden_exp_h, orig_c), self.xw, self.hw, self.xb, self.hb)
         if mask is not None:
-            hidden = self._apply_mask(mask, hidden, hidden_exp["H"])
-            c_t = self._apply_mask(mask, c_t, hidden_exp["C"])
-        return {"H": hidden, "C": c_t}
+            hidden = self._apply_mask(mask, hidden, orig_h)
+            c_t = self._apply_mask(mask, c_t, orig_c)
+        return (hidden, c_t)
 
     def zero_init_hidden(self, bsize):
         z0 = BK.zeros((bsize, self.n_hidden))
-        return {"H": z0, "C": z0}
+        return (z0, z0)
 
 # stateless encoder
 # here only one layer, to join by Seq
@@ -201,22 +207,23 @@ class RnnLayer(BasicNode):
         if masks is None:
             masks = [None for _ in embeds]
         bsize = BK.get_shape(embeds[0], 0)
-        init_hidden = BK.zeros((bsize, self.n_hidden))       # broadcast
+        init_hidden = BK.zeros((bsize, self.n_hidden))      # broadcast
+        init_states = (init_hidden, init_hidden)            # todo(note): inner side of the RNN-units
         for layer_idx in range(self.n_layers):
             f_node = self.fnodes[layer_idx]
             tmp_f = []      # forward
-            tmp_f_prev = {"H":init_hidden, "C":init_hidden}
+            tmp_f_prev = init_states
             for e, m in zip(outputs[-1], masks):
                 one_output = f_node(e, tmp_f_prev, m)
-                tmp_f.append(one_output["H"])
+                tmp_f.append(one_output[0])                 # todo(note): inner side of the RNN-units
                 tmp_f_prev = one_output
             if self.bidirection:
                 b_node = self.bnodes[layer_idx]
                 tmp_b = []      # backward
-                tmp_b_prev = {"H":init_hidden, "C":init_hidden}
+                tmp_b_prev = init_states
                 for e, m in zip(reversed(outputs[-1]), reversed(masks)):
                     one_output = b_node(e, tmp_b_prev, m)
-                    tmp_b.append(one_output["H"])
+                    tmp_b.append(one_output[0])             # todo(note): inner side of the RNN-units
                     tmp_b_prev = one_output
                 # concat
                 ctx = [BK.concat([f,b]) for f,b in zip(tmp_f, reversed(tmp_b))]
@@ -236,7 +243,7 @@ class RnnLayer(BasicNode):
 class RnnLayerBatchFirstWrapper(BasicNode):
     def __init__(self, pc, rnn_node):
         super().__init__(pc, None, None)
-        self.rnn_node = self.add_sub_node("z", rnn_node)
+        self.rnn_node: RnnLayer = self.add_sub_node("z", rnn_node)
 
     # mask>0. means valid, mask=0. means padding
     @staticmethod
@@ -277,12 +284,12 @@ class CnnNode(BasicNode):
             n_windows = [n_windows]
         self.n_out = n_output * len(n_windows)      # simply concat
         self.conv_opers = [BK.CnnOper(self, n_input, n_output, z) for z in n_windows]      # add params here
-        # pooling? -> act -> dropout
+        # act -> pooling -> dropout
+        self._act_f = ActivationHelper.get_act(act)
         if pooling is not None:
             self._pool_f = ActivationHelper.get_pool(pooling)
         else:
             self._pool_f = lambda x: x
-        self._act_f = ActivationHelper.get_act(act)
         self.drop_node = self.add_sub_node("drop", Dropout(pc, (self.n_out,)))
 
     # input should be a single Expr
@@ -290,10 +297,10 @@ class CnnNode(BasicNode):
     def __call__(self, input_expr, mask_arr=None):
         output_exprs = [oper.conv(input_expr) for oper in self.conv_opers]
         output_expr = BK.concat(output_exprs, -1)
-        # pooling? -> act -> dropout
-        expr_p = self._pool_f(output_expr)
-        expr_a = self._act_f(expr_p)
-        expr_d = self.drop_node(expr_a)
+        # act -> pooling -> dropout
+        expr_a = self._act_f(output_expr)
+        expr_p = self._pool_f(expr_a)
+        expr_d = self.drop_node(expr_p)
         return expr_d
 
     def get_output_dims(self, *input_dims):
@@ -301,18 +308,29 @@ class CnnNode(BasicNode):
 
 CnnLayer = CnnNode
 
+# =====
+# self attentional encoders
+
+# common helper
+def get_selfatt_node(pc, d_model, aconf: AttConf, fix_range_val):
+    orig_range_val = aconf._fixed_range_val
+    if fix_range_val is not None:
+        aconf._fixed_range_val = fix_range_val
+    node = AttentionNode.get_att_node(aconf.type, pc, d_model, d_model, d_model, aconf)
+    aconf._fixed_range_val = orig_range_val
+    return node
+
+# =====
 # transformer (self-attention)
 # todo(warn): layer-norm at the output rather than input
 class TransformerEncoderLayer(BasicNode):
-    def __init__(self, pc, d_model, d_ff, d_kqv=64, head_count=8, att_type="mh", add_wrapper="addnorm", att_dropout=0.1, att_use_ranges=False, attf_selfw=0., clip_dist=0, use_neg_dist=True, name=None, init_rop=None):
+    def __init__(self, pc, d_model, d_ff, add_wrapper, aconf: AttConf, fix_range_val, name=None, init_rop=None):
         super().__init__(pc, name, init_rop)
         # todo(note): residual adding is like preserving 0.5 attention for self
         wrapper_getf = {"addnorm": AddNormWrapper, "addtanh": lambda *args: AddActWrapper(*args, act="tanh")}[add_wrapper]
         #
-        att_getf = {"mh": lambda: MultiHeadAttention(pc, d_model, d_model, d_model, d_kqv, head_count, att_dropout, att_use_ranges, clip_dist, use_neg_dist), "mhf": lambda: MultiHeadFixedAttention(pc, d_model, d_model, d_model, d_kqv, head_count, att_dropout, att_use_ranges, attf_selfw)}[att_type]
-        #
         self.d_model = d_model
-        self.self_att = self.add_sub_node("s", wrapper_getf(att_getf(), [d_model]))
+        self.self_att = self.add_sub_node("s", wrapper_getf(get_selfatt_node(pc, d_model, aconf, fix_range_val), [d_model]))
         self.feed_forward = self.add_sub_node("ff", wrapper_getf(
             get_mlp(pc, d_model, d_model, d_ff, n_hidden_layer=1, hidden_act="relu", final_act="linear"), [d_model]))
 
@@ -327,17 +345,23 @@ class TransformerEncoderLayer(BasicNode):
 
 # transformer (multiple-layers)
 class TransformerEncoder(BasicNode):
-    def __init__(self, pc, n_layers, d_model, d_ff, d_kqv=64, head_count=8, att_type="mh", add_wrapper="addnorm", att_dropout=0.1, att_use_ranges=False, attf_selfw=0., clip_dist=0, use_neg_dist=True, name=None, init_rop=None):
+    def __init__(self, pc, n_layers, d_model, d_ff, add_wrapper, aconf: AttConf, fixed_range_vals, final_act="linear", name=None, init_rop=None):
         super().__init__(pc, name, init_rop)
         #
         self.d_model = d_model
         self.n_layers = n_layers
-        #
-        in_getf = {"addnorm": lambda *args: self.add_sub_node("in", LayerNorm(*args)),
+        # todo(note): here do not make std back since there can be zero input problems!
+        in_getf = {"addnorm": lambda *args: self.add_sub_node("in", LayerNorm(*args, std_no_grad=True)),
                    "addtanh": lambda *args: ActivationHelper.get_act("tanh")}[add_wrapper]
         self.input_f = in_getf(pc, d_model)
         #
-        self.layers = [self.add_sub_node("one", TransformerEncoderLayer(pc, d_model, d_ff, d_kqv, head_count, att_type, add_wrapper, att_dropout, att_use_ranges, attf_selfw, clip_dist, use_neg_dist)) for _ in range(n_layers)]
+        if fixed_range_vals is None:
+            fixed_range_vals = [None] * self.n_layers
+        else:
+            assert len(fixed_range_vals) == self.n_layers, "Unmatched ranges and number of layers"
+        # todo(+N): not elegant here!
+        self.layers = [self.add_sub_node("one", TransformerEncoderLayer(pc, d_model, d_ff, add_wrapper, aconf, fix_range_val=fixed_range_vals[i])) for i in range(n_layers)]
+        self._act_f = ActivationHelper.get_act(final_act)
 
     def get_output_dims(self, *input_dims):
         return (self.d_model, )
@@ -345,6 +369,53 @@ class TransformerEncoder(BasicNode):
     def __call__(self, input_expr, mask_arr=None):
         mask_expr = None if mask_arr is None else BK.input_real(mask_arr)
         x = self.input_f(input_expr)
+        for layer in self.layers:
+            x = layer(x, mask_expr)
+        return self._act_f(x)
+
+# ======
+# my-transformer: with slight modifications
+# -- fat-transformer: combining more horizontally
+
+class Transformer2EncoderLayer(BasicNode):
+    def __init__(self, pc, d_model, aconf: AttConf, short_range, long_range, name=None, init_rop=None):
+        super().__init__(pc, name, init_rop)
+        self.d_model = d_model
+        # use range or not depends on the one argument
+        self.short_att = self.add_sub_node("sa", get_selfatt_node(pc, d_model, aconf, short_range))
+        self.long_att = self.add_sub_node("la", get_selfatt_node(pc, d_model, aconf, long_range))
+        # final gated combiner (mix input/short-att/long-att)
+        self.combiner = self.add_sub_node("fc", GatedMixer(pc, d_model, 3))
+
+    def get_output_dims(self, *input_dims):
+        return (self.d_model, )
+
+    def __call__(self, input_expr, mask_arr=None):
+        mask_expr = None if mask_arr is None else BK.input_real(mask_arr)
+        short_output = self.short_att(input_expr, input_expr, input_expr, mask_expr)
+        long_output = self.long_att(input_expr, input_expr, input_expr, mask_expr)
+        final_output = self.combiner([input_expr, short_output, long_output])
+        return final_output
+
+# my-transformer (multiple-layers)
+class Transformer2Encoder(BasicNode):
+    def __init__(self, pc, n_layers, d_model, aconf: AttConf, short_range:int, long_ranges:List[int], name=None, init_rop=None):
+        super().__init__(pc, name, init_rop)
+        self.d_model = d_model
+        self.n_layers = n_layers
+        #
+        if long_ranges is None:
+            long_ranges = [None] * self.n_layers
+        else:
+            assert len(long_ranges) == self.n_layers, "Unmatched long ranges and number of layers"
+        self.layers = [self.add_sub_node("one", Transformer2EncoderLayer(pc, d_model, aconf, short_range=short_range, long_range=long_ranges[i])) for i in range(n_layers)]
+
+    def get_output_dims(self, *input_dims):
+        return (self.d_model, )
+
+    def __call__(self, input_expr, mask_arr=None):
+        mask_expr = None if mask_arr is None else BK.input_real(mask_arr)
+        x = input_expr
         for layer in self.layers:
             x = layer(x, mask_expr)
         return x

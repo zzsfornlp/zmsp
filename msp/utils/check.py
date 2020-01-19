@@ -3,46 +3,37 @@
 from .log import zlog
 from collections import Callable
 
-# Checkings: also including some shortcuts for convenience
-
-class ZException(RuntimeError):
-    def __init__(self, s):
-        super().__init__(s)
+# Checkings
 
 def zfatal(ss=""):
     zlog(ss, func="fatal")
-    raise ZException(ss)
+    raise RuntimeError(ss)
 
-def zwarn(ss=""):
-    zlog(ss, func="warn")
+def zwarn(ss="", **kwargs):
+    zlog(ss, func="warn", **kwargs)
 
-def zcheck(ff, ss, func="error", forced=False):
-    if Checker.enabled(func) or forced:
-        Checker.check(ff, ss, func)
+def _get_v(ff):
+    return ff() if isinstance(ff, Callable) else ff
+
+def zcheck(ff, ss, fatal=True, level=3):
+    if level >= Checker._level:
+        check_val, check_ss = _get_v(ff), _get_v(ss)
+        if not check_val:
+            if fatal:
+                zfatal(check_ss)
+            else:
+                zwarn(check_ss)
 
 # should be used when debugging or only fatal ones, comment out if real usage
 class Checker(object):
-    _checker_filters = {"warn": True, "error": True, "fatal": True}
-    _checker_handlers = {"warn": (lambda: 0), "error": (lambda: zfatal("ERROR")), "fatal": (lambda: zfatal("FATAL-ERROR"))}
+    _level = 3
 
     @staticmethod
-    def init():
-        # todo(0): this may be enough
-        pass
+    def init(level=3):
+        Checker.set_level(level)
 
     @staticmethod
-    def _get_v(v):
-        if isinstance(v, Callable):
-            return v()
-        else:
-            return v
-
-    @staticmethod
-    def check(expr, ss, func):
-        if not Checker._get_v(expr):
-            zlog(Checker._get_v(ss), func=func)
-            Checker._checker_handlers[func]()
-
-    @staticmethod
-    def enabled(func):
-        return Checker._checker_filters[func]
+    def set_level(level):
+        if level != Checker._level:
+            zlog(f"Change check level from {Checker._level} to {level}")
+        Checker._level = level

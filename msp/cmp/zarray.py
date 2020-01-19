@@ -5,6 +5,8 @@
 
 import numpy as np
 
+# todo(warn): should use pandas!
+
 class ZArray:
     def __init__(self, arr: np.ndarray, names=None):
         self.arr = arr

@@ -53,12 +53,19 @@ def _my_get_params_init(shape, init, lookup):
             w0 = Random.randn_clip(shape, "winit")
             return w0*poss_scale
         elif init == "ortho":
-            assert len(shape)==2 and shape[0] % shape[1] == 0, "Bad shape %s for ortho_init" % shape
-            num = shape[0] // shape[1]
+            # todo(note): always assume init square matrices
+            assert len(shape)==2 and (shape[0] % shape[1] == 0 or shape[1] % shape[0] == 0), f"Bad shape {shape} for ortho_init!"
+            orig_num = shape[0] // shape[1]
+            if orig_num == 0:
+                num = shape[1] // shape[0]
+            else:
+                num = orig_num
             if num == 1:
                 w0 = Random.ortho_weight(shape[1], "winit")
             else:
                 w0 = np.concatenate([Random.ortho_weight(shape[1], "winit") for _ in range(num)])
+            if orig_num == 0:  # reverse it!
+                w0 = np.transpose(w0)
             return w0*poss_scale
         elif init == "zeros":
             return np.zeros(shape)

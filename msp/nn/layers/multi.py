@@ -40,9 +40,6 @@ class Summer(BasicNode):
     def __init__(self, pc, name=None, init_rop=None):
         super().__init__(pc, name, init_rop)
 
-    def refresh(self, rop=None):
-        pass
-
     # NO dropouts!!
     def __call__(self, input_list):
         # todo(warn): not that efficient!
@@ -61,9 +58,6 @@ class Concater(BasicNode):
     def __init__(self, pc, name=None, init_rop=None):
         super().__init__(pc, name, init_rop)
 
-    def refresh(self, rop=None):
-        pass
-
     # NO dropouts!!
     def __call__(self, input_list):
         return BK.concat(input_list, -1)
@@ -72,8 +66,30 @@ class Concater(BasicNode):
         xs = input_dims[0]
         return sum(xs)
 
+# sum the inputs with gates
+class GatedMixer(BasicNode):
+    def __init__(self, pc, dim, num_input, name=None, init_rop=None):
+        super().__init__(pc, name, init_rop)
+        self.dim = dim
+        self.num_input = num_input
+        #
+        self.ff = self.add_sub_node("g", Affine(pc, dim*num_input, dim*num_input, act="sigmoid"))
+        self.ff2 = self.add_sub_node("f", Affine(pc, dim*num_input, dim, act="tanh"))
+
+    def __call__(self, input_list):
+        concat_input_t = BK.concat(input_list, -1)
+        gates_t = self.ff(concat_input_t)
+        final_output_t = self.ff2(concat_input_t * gates_t)
+        # output_shape = BK.get_shape(concat_output_t)[:-1] + [self.num_input, -1]
+        # # [*, num, D] ->(avg)-> [*, D]
+        # return BK.avg(concat_output_t.view(output_shape), dim=-2)
+        return final_output_t
+
+    def get_output_dims(self, *input_dims):
+        return (self.dim, )
+
 # input -> various outputs -> join
-# -- join mode can be "cat" or "add"
+# -- join mode can be "cat", "add"
 class Joiner(BasicNode):
     def __init__(self, pc, node_iter, mode="cat", name=None, init_rop=None):
         super().__init__(pc, name, init_rop)
@@ -117,11 +133,11 @@ class NodeWrapper(BasicNode):
 
 # Adding with the first arg
 class AddNormWrapper(NodeWrapper):
-    def __init__(self, node, node_last_dims):
+    def __init__(self, node, node_last_dims, std_no_grad=False):
         super().__init__(node, node_last_dims)
         self.size = self.input_ns[0]
         zcheck(self.size==self.output_ns[0], "AddNormWrapper meets unequal dims.")
-        self.normer = self.add_sub_node("n", LayerNorm(self.pc, self.size))
+        self.normer = self.add_sub_node("n", LayerNorm(self.pc, self.size, std_no_grad=std_no_grad))
 
     def get_output_dims(self, *input_dims):
         return (self.size, )
@@ -165,11 +181,12 @@ class HighWayWrapper(NodeWrapper):
 
 # shortcuts
 # shortcur for MLP
-def get_mlp(pc, n_ins, n_out, n_hidden, n_hidden_layer=1, hidden_act="tanh", final_act="linear", hidden_bias=True, final_bias=True, hidden_init_rop=None, final_init_rop=None):
+def get_mlp(pc, n_ins, n_out, n_hidden, n_hidden_layer=1, hidden_act="tanh", final_act="linear", hidden_bias=True, final_bias=True, hidden_init_rop=None, final_init_rop=None, hidden_which_affine=2):
     layer_dims = [n_ins] + [n_hidden]*n_hidden_layer
     nodes = []
     for idx in range(n_hidden_layer):
-        hidden_one = Affine(pc, layer_dims[idx], layer_dims[idx+1], act=hidden_act, bias=hidden_bias, init_rop=hidden_init_rop)
+        hidden_one = Affine(pc, layer_dims[idx], layer_dims[idx+1], act=hidden_act, bias=hidden_bias,
+                            init_rop=hidden_init_rop, which_affine=hidden_which_affine)
         nodes.append(hidden_one)
     nodes.append(Affine(pc, layer_dims[-1], n_out, act=final_act, bias=final_bias, init_rop=final_init_rop))
     return Sequential(pc, nodes, name="mlp")

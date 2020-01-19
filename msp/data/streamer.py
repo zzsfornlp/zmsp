@@ -1,6 +1,6 @@
 #
 
-from msp.utils import zopen, zcheck, zfatal, ZException
+from msp.utils import zopen, zcheck, zfatal
 from msp.utils import Constants, Random
 from typing import Iterable, Sequence
 
@@ -147,10 +147,25 @@ class FAdapterStreamer(AdapterStreamer):
         else:
             return z
 
-# f can returns a list (augment or filter)
-# TODO(+1)
+# f: Inst -> List[Inst] (augment or filter)
 class FListAdapterStream(AdapterStreamer):
-    pass
+    def __init__(self, base_streamer, f):
+        super().__init__(base_streamer)
+        self.f = f
+        self.cache = []
+        self.cache_idx = 0
+
+    def _next(self):
+        while self.cache_idx >= len(self.cache):
+            one = self.base_streamer_.next()
+            if self.base_streamer_.is_eos(one):
+                return None
+            self.cache.clear()
+            self.cache_idx = 0
+            self.cache.extend(self.f(one))
+        r = self.cache[self.cache_idx]
+        self.cache_idx += 1
+        return r
 
 # =====
 # Random Streams
@@ -202,13 +217,6 @@ class DropStreamer(AdapterStreamer):
             if self.rs_.next():
                 return one
 
-# TODO(+2)
-class ShuffleStreamer(AdapterStreamer):
-    # -1 means read all and shuffle
-    def __init__(self, base_streamer, batch_size=-1):
-        super().__init__(base_streamer)
-        raise NotImplementedError()
-
 # =====
 # Multi Streamers
 
@@ -246,6 +254,45 @@ class MultiCatStreamer(MultiStreamer):
         for one in self.base_streamers_:
             one.restart()
         self._mc_set_cur(0)
+
+#
+# like MultiCat, but join the streams (horizontally) rather than concat (vertically)
+# todo(note): currently mixing them 1 by 1; maybe not efficient enough if there are too many streamers
+class MultiJoinStreamer(MultiStreamer):
+    def __init__(self, base_streamers: Sequence):
+        super().__init__(base_streamers)
+        self.cur_pointer = 0
+        self.ended = [False] * len(self.base_streamers_)
+
+    def _next(self):
+        # find the next active streamer
+        starting_point = self.cur_pointer
+        num_streamers = self.num_streamers_
+        cur_point = starting_point
+        flag_success = False
+        one = None
+        for i in range(num_streamers):  # at most travel one round
+            if not self.ended[cur_point]:
+                new_streamer = self.base_streamers_[cur_point]
+                one = new_streamer.next()
+                if new_streamer.is_eos(one):
+                    self.ended[cur_point] = True
+                else:
+                    flag_success = True
+            cur_point = (cur_point + 1) % num_streamers
+            if flag_success:
+                break
+        self.cur_pointer = cur_point
+        if flag_success:
+            return one
+        else:
+            return None
+
+    def _restart(self):
+        for one in self.base_streamers_:
+            one.restart()
+        self.cur_pointer = 0
+        self.ended = [False] * len(self.base_streamers_)
 
 #
 # zip-like multi-streamer, with various modes, return a list of instances
@@ -301,6 +348,9 @@ class Cache(object):
     def reset(self):
         raise NotImplementedError()
 
+    def clear(self):
+        raise NotImplementedError()
+
     def __len__(self):
         raise NotImplementedError()
 
@@ -325,6 +375,10 @@ class InplacedCache(Cache):
             self.ptr += 1
             return self.c[self.ptr-1]
 
+    def clear(self):
+        self.c.clear()
+        self.ptr = 0
+
     def reset(self):
         self.ptr = 0
         if self.shuffle:
@@ -345,6 +399,24 @@ class InstCacher(Streamer):
         if self.restart_times_==0:
             for one in self.src:
                 self.cache.put(one)
+        self.cache.reset()
+
+# todo(+1): partial shuffle to avoid read all?
+class ShuffleStreamer(AdapterStreamer):
+    # -1 means read all and shuffle
+    def __init__(self, src_stream, cache_builder=InplacedCache):
+        super().__init__(src_stream)
+        self.src = src_stream
+        self.cache = cache_builder(shuffle=True)
+
+    def _next(self):
+        return self.cache.get()
+
+    def _restart(self):
+        # todo(note): rebuild cache each time (do not need to call super, since for-loop will trigger the src.restart)
+        self.cache.clear()
+        for one in self.src:
+            self.cache.put(one)
         self.cache.reset()
 
 # =====

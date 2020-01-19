@@ -15,7 +15,7 @@ from msp.utils import zcheck, zwarn, zlog, Random
 # [inputs] or input -> output
 class Affine(BasicNode):
     # n_ins: [n_ins0, n_ins1, ...]
-    def __init__(self, pc, n_ins, n_out, act="linear", bias=True, affine2=True, name=None, init_rop=None):
+    def __init__(self, pc, n_ins, n_out, act="linear", bias=True, which_affine=2, name=None, init_rop=None):
         super().__init__(pc, name, init_rop)
         # list of n_ins and n_outs have different meanings: horizontal and vertical
         if not isinstance(n_ins, Iterable):
@@ -40,7 +40,7 @@ class Affine(BasicNode):
         self.drop_node = self.add_sub_node("drop", Dropout(pc, (self.n_out,)))
         self._input_list = self._init_input_list()
         #
-        self._affine_f = BK.affine2 if affine2 else BK.affine
+        self._affine_f = {1: BK.affine, 2: BK.affine2, 3: BK.affine3}[which_affine]
 
     def _init_input_list(self):
         # called when refresh
@@ -77,10 +77,18 @@ class Affine(BasicNode):
     def get_output_dims(self, *input_dims):
         return (self.n_out, )
 
+    # special usage
+    def zero_params(self):
+        with BK.no_grad_env():
+            for w in self.ws:
+                w.zero_()
+            if self.bias:
+                self.b.zero_()
+
 # ==========
 # special ones
 class LayerNorm(BasicNode):
-    def __init__(self, pc, size, a_init=1., eps=1e-6, name=None):
+    def __init__(self, pc, size, a_init=1., eps=1e-6, name=None, std_no_grad=False):
         super().__init__(pc, name, None)
         # todo(+N): is this all right?
         a_init_v = np.sqrt(3./size) if a_init is None else a_init
@@ -88,12 +96,18 @@ class LayerNorm(BasicNode):
         self.a_2 = self.add_param(name="A", shape=(size, ), init=np.full(size, a_init_v, dtype=np.float32))
         self.b_2 = self.add_param(name="B", shape=(size, ), init=np.zeros(size, dtype=np.float32))
         self.eps = eps
+        self.std_no_grad = std_no_grad
         # no droput here
 
     def __call__(self, x):
         mean = x.mean(-1, keepdim=True)
         std = x.std(-1, keepdim=True)
-        return self.a_2 * (x - mean) / (std + self.eps) + self.b_2
+        if self.std_no_grad:
+            std = std.detach()
+        # todo(+N): if std is small, (for example, zero input), then div 1 since otherwise there will be NAN
+        #  currently depend on outside flag (for the very first (input) layer)
+        to_div = std + self.eps
+        return self.a_2 * (x - mean) / to_div + self.b_2
 
 # ===== Looking up Nodes
 # like an embedding, usually used as the score matrix
@@ -124,10 +138,13 @@ class Embedding(BasicNode):
     def __init__(self, pc, n_words, n_dim, fix_row0=True, dropout_wordceil=None, npvec=None, name=None, init_rop=None, freeze=False):
         super(Embedding, self).__init__(pc, name, init_rop)
         if npvec is not None:
-            zcheck(len(npvec.shape) == 2 and npvec.shape[0] == n_words and npvec.shape[1] == n_dim, "Wrong dimension for init embeddings.")
-            zlog("Add embed W from npvec %s." % (npvec.shape,))
-            if freeze:
-                self.rop.add_fixed_value("trainable", False)
+            if not (len(npvec.shape) == 2 and npvec.shape[0] == n_words and npvec.shape[1] == n_dim):
+                zlog(f"Wrong dimension for init embeddings {npvec.shape} instead of ({n_words}, {n_dim}), use random instead!!")
+                npvec = None
+            else:
+                zlog("Add embed W from npvec %s." % (npvec.shape,))
+                if freeze:
+                    self.rop.add_fixed_value("trainable", False)
         else:
             if freeze:
                 self.rop.add_fixed_value("trainable", False)
@@ -149,8 +166,10 @@ class Embedding(BasicNode):
         zcheck(num_dim == self.n_dim, "Cannot change embedding dimension!")
         # replace
         # todo(+N): simply add one param here, the original one is still around
+        # todo(WARN): only use this for testing, since the new weights will not be added to the optimizer
         zlog(f"Replacing the embedding weights from ({self.n_words}, {num_dim}) to ({num_words}, {num_dim})")
-        self.E = self.add_param("E", (num_words, num_dim), init=npvec, lookup=True)
+        # here, we are adding params at the outside
+        self.E = self.add_param("E", (num_words, num_dim), init=npvec, lookup=True, check_stack=False)
         self.n_words = num_words
         self.dropout_wordceil = self.dropout_wordceil_hp if self.dropout_wordceil_hp is not None else self.n_words
 
@@ -159,7 +178,7 @@ class Embedding(BasicNode):
             return lambda x: x
         else:
             # todo(warn): replaced sample, maybe an efficient but approx. impl & only works for 2d
-            edrop_rands = Random.random_sample((int(self.dropout_wordceil*edrop),), "sample")    # [0,1)
+            edrop_rands = Random.random_sample((int(self.dropout_wordceil*edrop),))    # [0,1)
             edrop_idxes = [int(self.dropout_wordceil*z) for z in edrop_rands]
             edrop_set = set(edrop_idxes)
             return lambda x: [0 if one in edrop_set else one for one in x]      # drop to 0 if fall in the set
@@ -198,7 +217,7 @@ class PosiEmbedding(BasicNode):
         if init_sincos:
             pe = np.zeros([max_len, n_dim])
             position = np.arange(0, max_len).reshape([-1, 1])
-            div_term = np.exp((np.arange(0, n_dim, 2) * -(math.log(10000.0)/n_dim)))
+            div_term = np.exp((np.arange(0, n_dim, 2) * -(math.log(2*max_len)/n_dim)))
             div_results = position * div_term
             pe[:, 0::2] = np.sin(div_results)
             pe[:, 1::2] = np.cos(div_results)
@@ -236,3 +255,28 @@ class PosiEmbedding(BasicNode):
         h0 = BK.lookup(self.E, clamped_idx_repr)
         h1 = self.drop_node(h0)
         return h1
+
+# relative positional embeddings: [min, max]; no dropout!
+class RelPosiEmbedding(BasicNode):
+    def __init__(self, pc: BK.ParamCollection, dim: int, max: int, min: int = None):
+        super().__init__(pc, None, None)
+        self.dim = dim
+        assert max>=0
+        self.max = max
+        self.min = -max if min is None else min
+        assert self.min<=self.max
+        self.E = self.add_param("E", (self.max-self.min+1, dim), lookup=True)
+
+    def get_output_dims(self, *input_dims):
+        return (self.dim, )
+
+    def __repr__(self):
+        return f"# RelativePositionalEmbedding (dim={self.dim}, range=[{self.min}, {self.max}])"
+
+    def __call__(self, input_idxes):
+        # input should be a list of ints or int
+        if isinstance(input_idxes, int):
+            input_idxes = [input_idxes]
+        clamped_idx_repr = BK.clamp(BK.input_idx(input_idxes), min=self.min, max=self.max) - self.min
+        h0 = BK.lookup(self.E, clamped_idx_repr)
+        return h0

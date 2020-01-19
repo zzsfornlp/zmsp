@@ -91,3 +91,17 @@ class Random(object):
     @staticmethod
     def randint(low, high=None, size=None, task=""):
         return Random.get_generator(task).randint(low, high, size)
+
+    # =====
+    # batched forever streamer
+    @staticmethod
+    def stream(f, batch_size=1024):
+        while True:
+            for one in f(size=batch_size):
+                yield one
+
+    @staticmethod
+    def stream_bool(true_rate, batch_size=1024):
+        while True:
+            for one in Random.random_bool(true_rate, batch_size):
+                yield one

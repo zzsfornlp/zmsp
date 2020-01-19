@@ -33,12 +33,12 @@ class Vocab(object):
     @staticmethod
     def read(fname):
         one = Vocab()
-        JsonRW.load_from_file(one, fname)
+        JsonRW.from_file(one, fname)
         zlog("-- Read Dictionary from %s: Finish %s." % (fname, len(one)), func="io")
         return one
 
     def write(self, fname):
-        JsonRW.save_to_file(self, fname)
+        JsonRW.to_file(self, fname)
         zlog("-- Write Dictionary to %s: Finish %s." % (fname, len(self)), func="io")
 
     # -------------
@@ -104,8 +104,12 @@ class Vocab(object):
 
     # =====
     # ranges if used as target vocab
-    def trg_len(self):
-        return self.target_length_
+    def trg_len(self, idx_orig):
+        # if idx_orig, return more len including the start ranges to make the idxes the same
+        if idx_orig:
+            return self.target_length_ + self.target_range_[0]
+        else:
+            return self.target_length_
 
     # target idx to real idx
     def trg_pred2real(self, idx):
@@ -159,7 +163,7 @@ class Vocab(object):
         return tmp
 
     # filter inits for embeddings
-    def filter_embed(self, wv, init_nohit=0., scale=1.0):
+    def filter_embed(self, wv: 'WordVectors', init_nohit=0., scale=1.0, assert_all_hit=False):
         if init_nohit <= 0.:
             get_nohit = lambda s: np.zeros((s,), dtype=np.float32)
         else:
@@ -177,6 +181,9 @@ class Vocab(object):
                 # value = np.zeros((wv.embed_size,), dtype=np.float32)
                 res["no-hit"] += 1
             ret.append(value)
+        #
+        if assert_all_hit:
+            zcheck(res["no-hit"]==0, f"Filter-embed error: assert all-hit but get no-hit of {res['no-hit']}")
         printing("Filter pre-trained embed: %s, no-hit is inited with %s." % (res, init_nohit))
         return np.asarray(ret, dtype=np.float32) * scale
 
@@ -216,11 +223,11 @@ class VocabBuilder(object):
     @staticmethod
     def _build_check(v):
         # check specials are included
-        zcheck(lambda: all(x in v.v for x in v.pre_list), "Not including pre_specials", func="warn")
-        zcheck(lambda: all(x in v.v for x in v.post_list), "Not including post_specials", func="warn")
+        zcheck(lambda: all(x in v.v for x in v.pre_list), "Not including pre_specials")
+        zcheck(lambda: all(x in v.v for x in v.post_list), "Not including post_specials")
         # check special tokens
-        zcheck(lambda: all(v.v[x]<len(v.pre_list) for x in v.pre_list), "Get unexpected pre_special words in plain words!!", func="warn")
-        zcheck(lambda: all(v.v[x]>=len(v.v)-len(v.post_list) for x in v.post_list), "Get unexpected post_special words in plain words!!", func="warn")
+        zcheck(lambda: all(v.v[x]<len(v.pre_list) for x in v.pre_list), "Get unexpected pre_special words in plain words!!")
+        zcheck(lambda: all(v.v[x]>=len(v.v)-len(v.post_list) for x in v.post_list), "Get unexpected post_special words in plain words!!")
 
     @staticmethod
     def _build_prop(v):
@@ -362,18 +369,28 @@ class WordVectors(object):
         self.wmap = {}          # str -> idx
         self.vecs = []          # idx -> vec
         self.sep = sep
+        #
+        self.hits = {}  # hit keys by any queries with __contains__: norm_until_hit, has_key, get_vec
+
+    #
+    def __contains__(self, item):
+        if item in self.wmap:
+            self.hits[item] = self.hits.get(item, 0) + 1
+            return True
+        else:
+            return False
 
     # return (hit?, norm_name, normed_w)
     def norm_until_hit(self, w):
         orig_w = w
         for norm_name, norm_f in WordVectors.WORD_NORMERS:
             w = norm_f(w)
-            if w in self.wmap:
+            if w in self:
                 return True, norm_name, w
         return False, "", orig_w
 
     def has_key(self, k, norm=True):
-        if k in self.wmap:
+        if k in self:
             return True
         elif norm:
             return self.norm_until_hit(k)[0]
@@ -381,7 +398,7 @@ class WordVectors(object):
             return False
 
     def get_vec(self, k, df=None, norm=True):
-        if k in self.wmap:
+        if k in self:
             return self.vecs[self.wmap[k]]
         elif norm:
             hit, _, w = self.norm_until_hit(k)
@@ -390,10 +407,18 @@ class WordVectors(object):
         return df
 
     def save(self, fname):
-        printing("Saving w2v num_words=%d, embed_size=%d to %s." % (self.num_words, self.embed_size, fname))
+        printing(f"Saving w2v num_words={self.num_words:d}, embed_size={self.embed_size:d} to {fname}.")
         zcheck(self.num_words == len(self.vecs), "Internal error: unmatched number!")
         with zopen(fname, "w") as fd:
             WordVectors.save_txt(fd, self.words, self.vecs, self.sep)
+
+    def save_hits(self, fname):
+        num_hits = len(self.hits)
+        printing(f"Saving hit w2v num_words={num_hits:d}, embed_size={self.embed_size:d} to {fname}.")
+        with zopen(fname, "w") as fd:
+            tmp_words = sorted(self.hits.keys(), key=lambda k: self.wmap[k])  # use original ordering
+            tmp_vecs = [self.vecs[self.wmap[k]] for k in tmp_words]
+            WordVectors.save_txt(fd, tmp_words, tmp_vecs, self.sep)
 
     @staticmethod
     def save_txt(fd, words, vecs, sep):
@@ -419,7 +444,8 @@ class WordVectors(object):
             this_all_num = other.num_words
             this_added_num = 0
             for one_w, one_vec in zip(other.words, other.vecs):
-                if one_w not in self.wmap:
+                # keep the old one!
+                if one_w not in self.wmap:  # here, does not record as hits!
                     this_added_num += 1
                     self.wmap[one_w] = len(self.words)
                     self.words.append(one_w)
@@ -443,6 +469,7 @@ class WordVectors(object):
     def _load_txt(fname, sep=" "):
         printing("Going to load pre-trained (txt) w2v from %s ..." % fname)
         one = WordVectors(sep=sep)
+        repeated_count = 0
         with zopen(fname) as fd:
             # first line
             line = fd.readline()
@@ -457,7 +484,14 @@ class WordVectors(object):
                 line = line.rstrip()
                 fields = line.split(sep)
                 word, vec = fields[0], [float(x) for x in fields[1:]]
-                zcheck(word not in one.wmap, "Repeated key.")
+                # zcheck(word not in one.wmap, "Repeated key.")
+                # keep the old one
+                if word in one.wmap:
+                    repeated_count += 1
+                    zwarn(f"Repeat key {word}")
+                    line = fd.readline()
+                    continue
+                #
                 if one.embed_size is None:
                     one.embed_size = len(vec)
                 else:
@@ -467,11 +501,10 @@ class WordVectors(object):
                 one.words.append(word)
                 line = fd.readline()
         # final
-        if one.num_words is None:
-            one.num_words = len(one.vecs)
-            printing("Read ok: w2v num_words=%d, embed_size=%d." % (one.num_words, one.embed_size))
-        else:
-            zcheck(one.num_words == len(one.vecs), "Unmatched num of words.")
+        if one.num_words is not None:
+            zcheck(one.num_words == len(one.vecs)+repeated_count, "Unmatched num of words.")
+        one.num_words = len(one.vecs)
+        printing(f"Read ok: w2v num_words={one.num_words:d}, embed_size={one.embed_size:d}, repeat={repeated_count:d}")
         return one
 
     @staticmethod
@@ -480,6 +513,7 @@ class WordVectors(object):
         one = WordVectors()
         #
         kv = KeyedVectors.load_word2vec_format(fname, binary=True)
+        # KeyedVectors.save_word2vec_format()
         one.num_words, one.embed_size = len(kv.vectors), len(kv.vectors[0])
         for w, z in kv.vocab.items():
             one.vecs.append(kv.vectors[z.index])
@@ -497,11 +531,11 @@ class VocabPackage(object):
         self.vocabs = vocabs
         self.embeds = embeds
 
-    def get_voc(self, name):
-        return self.vocabs[name]
+    def get_voc(self, name, df=None):
+        return self.vocabs.get(name, df)
 
-    def get_emb(self, name):
-        return self.embeds[name]
+    def get_emb(self, name, df=None):
+        return self.embeds.get(name, df)
 
     def put_voc(self, name, v):
         self.vocabs[name] = v
@@ -520,7 +554,7 @@ class VocabPackage(object):
         for name in self.embeds:
             fname = prefix+"ve_"+name+".pic"
             if FileHelper.exists(fname):
-                self.embeds[name] = PickleRW.read(fname)
+                self.embeds[name] = PickleRW.from_file(fname)
             else:
                 self.embeds[name] = None
 
@@ -532,7 +566,7 @@ class VocabPackage(object):
         for name, vv in self.embeds.items():
             fname = prefix+"ve_"+name+".pic"
             if vv is not None:
-                PickleRW.write(fname, vv)
+                PickleRW.to_file(vv, fname)
 
 
 # helpers for handling multi-lingual data, simply adding lang-code prefix
@@ -564,22 +598,27 @@ class MultiHelper:
     # keep main's pre&post, but put aug's true words before post and make corresponding changes to the arr
     # -> return (new_vocab, new_arr)
     @staticmethod
-    def aug_vocab_and_arr(main_vocab, main_arr, aug_vocab, aug_arr):
+    def aug_vocab_and_arr(main_vocab, main_arr, aug_vocab, aug_arr, aug_override):
         # first merge the vocab
         new_vocab = VocabBuilder.merge_vocabs([main_vocab, aug_vocab], sort_by_count=False,
                                               pre_list=main_vocab.pre_list, post_list=main_vocab.post_list)
         # then find the arrays
+        # todo(+1): which order to find words
+        assert aug_override, "To be implemented for other ordering!"
+        #
         new_arr = []
         main_hit = aug_hit = 0
         for idx in range(len(new_vocab)):
             word = new_vocab.idx2word(idx)
-            # todo(warn): selecting the embeds according to order
-            main_orig_idx = main_vocab.get(word)
-            if main_orig_idx is None:
-                aug_orig_idx = aug_vocab[word]      # must be there!
-                new_arr.append(aug_arr[aug_orig_idx])
-            else:
+            # todo(warn): selecting the embeds in aug first (make it possible to override original ones!)
+            aug_orig_idx = aug_vocab.get(word)
+            if aug_orig_idx is None:
+                main_orig_idx = main_vocab[word]      # must be there!
                 new_arr.append(main_arr[main_orig_idx])
+                main_hit += 1
+            else:
+                new_arr.append(aug_arr[aug_orig_idx])
+                aug_hit += 1
         zlog(f"For the final merged arr, the composition is all={len(new_arr)},main={main_hit},aug={aug_hit}")
         ret_arr = np.asarray(new_arr)
         return new_vocab, ret_arr

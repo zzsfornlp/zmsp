@@ -6,7 +6,8 @@ from typing import Tuple, Iterable
 from msp.utils import Conf, zcheck
 from msp.data import VocabPackage
 from msp.nn import BK
-from msp.nn.layers import BasicNode, Embedding, CnnLayer, PosiEmbedding, Affine, LayerNorm, Sequential, DropoutLastN
+from msp.nn.layers import BasicNode, Embedding, CnnLayer, PosiEmbedding, Affine, LayerNorm, Sequential, \
+    DropoutLastN, Dropout
 
 #
 class EmbedConf(Conf):
@@ -30,6 +31,9 @@ class EmbedConf(Conf):
         # self.extra_names = ["pos", ]
         self.dim_extras = []
         self.extra_names = []
+        # aux direct features, like mbert ...
+        self.dim_auxes = []
+        self.fold_auxes = []  # how many folds per aux-repr, used to perform Elmo's styled linear combination
         #
         # -- project the concat before contextual encoders
         self.emb_proj_dim = 0
@@ -38,6 +42,11 @@ class EmbedConf(Conf):
     def do_validate(self):
         # confirm int for dims
         self.dim_extras = [int(z) for z in self.dim_extras]
+        self.dim_auxes = [int(z) for z in self.dim_auxes]
+        self.fold_auxes = [int(z) for z in self.fold_auxes]
+        # by default, fold=1
+        fold_gap = max(0, len(self.dim_auxes) - len(self.fold_auxes))
+        self.fold_auxes += [1] * fold_gap
 
 # combining the inputs after projected to embeddings
 # todo(0): names in vpack should be consistent: word, char, pos, ...
@@ -73,8 +82,19 @@ class MyEmbedder(BasicNode):
         self.extra_embeds = []
         for one_extra_dim, one_name in zip(self.dim_extras, self.extra_names):
             self.extra_embeds.append(self.add_sub_node(
-                "ext", Embedding(self.pc, len(vpack.get_voc(one_name)), one_extra_dim, name="extra")))
+                "ext", Embedding(self.pc, len(vpack.get_voc(one_name)), one_extra_dim,
+                                 npvec=vpack.get_emb(one_name, None), name="extra:"+one_name)))
             repr_sizes.append(one_extra_dim)
+        # auxes
+        self.dim_auxes = econf.dim_auxes
+        self.fold_auxes = econf.fold_auxes
+        self.aux_overall_gammas = []
+        self.aux_fold_lambdas = []
+        for one_aux_dim, one_aux_fold in zip(self.dim_auxes, self.fold_auxes):
+            repr_sizes.append(one_aux_dim)
+            # aux gamma and fold trainable lambdas
+            self.aux_overall_gammas.append(self.add_param("AG", (), 1.))  # scalar
+            self.aux_fold_lambdas.append(self.add_param("AL", (), [1./one_aux_fold for _ in range(one_aux_fold)]))  # [#fold]
         # =====
         # another projection layer? & set final dim
         zcheck(len(repr_sizes)>0, "No inputs?")
@@ -96,6 +116,8 @@ class MyEmbedder(BasicNode):
         self.dropmd_word = self.add_sub_node("md", DropoutLastN(pc, lastn=1))
         self.dropmd_char = self.add_sub_node("md", DropoutLastN(pc, lastn=1))
         self.dropmd_extras = [self.add_sub_node("md", DropoutLastN(pc, lastn=1)) for _ in self.extra_names]
+        # dropouts for aux
+        self.drop_auxes = [self.add_sub_node("aux", Dropout(pc, (one_aux_dim,))) for one_aux_dim in self.dim_auxes]
 
     #
     def get_output_dims(self, *input_dims):
@@ -104,9 +126,11 @@ class MyEmbedder(BasicNode):
     def __repr__(self):
         return "# MyEmbedder: %s -> %s" % (self.repr_sizes, self.output_dim)
 
-    # word_arr: None or [*, seq-len], char_arr: None or [*, seq-len, word-len], extra_arrs: list of [*, seq-len]
+    # word_arr: None or [*, seq-len], char_arr: None or [*, seq-len, word-len],
+    # extra_arrs: list of [*, seq-len], aux_arrs: list of [*, seq-len, D]
     # todo(warn): no masks in this step?
-    def __call__(self, word_arr:np.ndarray=None, char_arr:np.ndarray=None, extra_arrs:Iterable[np.ndarray]=()):
+    def __call__(self, word_arr:np.ndarray=None, char_arr:np.ndarray=None,
+                 extra_arrs:Iterable[np.ndarray]=(), aux_arrs: Iterable[np.ndarray]=()):
         exprs = []
         # word/char/extras/posi
         seq_shape = None
@@ -132,6 +156,20 @@ class MyEmbedder(BasicNode):
                 posi_input0 = BK.unsqueeze(posi_input0, 0)
             posi_input1 = BK.expand(posi_input0, tuple(seq_shape)+(-1,))
             exprs.append(posi_input1)
+        #
+        assert len(aux_arrs) == len(self.drop_auxes)
+        for one_aux_arr, one_aux_dim, one_aux_drop, one_fold, one_gamma, one_lambdas in \
+                zip(aux_arrs, self.dim_auxes, self.drop_auxes, self.fold_auxes, self.aux_overall_gammas, self.aux_fold_lambdas):
+            # fold and apply trainable lambdas
+            input_aux_repr = BK.input_real(one_aux_arr)
+            input_shape = BK.get_shape(input_aux_repr)
+            # todo(note): assume the original concat is [fold/layer, D]
+            reshaped_aux_repr = input_aux_repr.view(input_shape[:-1]+[one_fold, one_aux_dim])  # [*, slen, fold, D]
+            lambdas_softmax = BK.softmax(one_gamma, -1).unsqueeze(-1)  # [fold, 1]
+            weighted_aux_repr = (reshaped_aux_repr * lambdas_softmax).sum(-2) * one_gamma  # [*, slen, D]
+            one_aux_expr = one_aux_drop(weighted_aux_repr)
+            exprs.append(one_aux_expr)
+        #
         concated_exprs = BK.concat(exprs, dim=-1)
         # optional proj
         if self.has_proj:

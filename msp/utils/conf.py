@@ -1,11 +1,13 @@
 #
 
 from collections import Iterable, OrderedDict
+import json
 
 from .log import printing, zopen
 from .check import zcheck, zfatal, zwarn
 from .utils import Constants
 
+# todo(+N): need to provide more detailed names if there are ambiguity, anyway to set default ones?
 class Conf(object):
     NV_SEP = ":"
     HIERARCHICAL_SEP = "."
@@ -54,7 +56,8 @@ class Conf(object):
                     self.__dict__[n] = type(self.__dict__[n])(v)
 
     # =====
-    # collecting shortcuts
+    # collecting shortcuts (all k-last suffixes * zero/one previous random one)
+    # todo(warn): the number will explode if there are too many layers?
     def collect_all_names(self):
         def _add_rec(v, cur_conf, path):
             for n in cur_conf.__dict__:
@@ -67,9 +70,16 @@ class Conf(object):
                         full_path = Conf.HIERARCHICAL_SEP.join(path)
                         for i in range(len(path)):
                             short_name = Conf.HIERARCHICAL_SEP.join(path[i:])
-                            if short_name not in v:
-                                v[short_name] = []
-                            v[short_name].append(full_path)
+                            # further combination: (n^2): single previous
+                            for lead_name in [""] + path[:max(0, i-1)]:  # i-1 to avoid repeating for continuous one
+                                if lead_name:
+                                    final_name = Conf.HIERARCHICAL_SEP.join([lead_name, short_name])
+                                else:
+                                    final_name = short_name
+                                #
+                                if final_name not in v:
+                                    v[final_name] = []
+                                v[final_name].append(full_path)
                     path.pop()
         #
         ret = {}    # post_name -> full_name set
@@ -95,10 +105,15 @@ class Conf(object):
         last_name = ks[-1]
         old_v = sub_conf.__dict__[last_name]
         item_type = type(old_v)
+        # todo(+1): can also use python's "eval" function
         if isinstance(old_v, list):
+            try:
+                v_toassign = json.loads(v)
+            except json.JSONDecodeError:
+                v_toassign = v.split(Conf.LIST_SEP) if len(v)>0 else []
             # todo(warn): for default empty ones, also special treating for bool
-            ele_type = type(old_v[0]) if len(old_v)>0 else str
-            sub_conf.__dict__[last_name] = [_getv(ele_type, z) for z in v.split(Conf.LIST_SEP)]
+            ele_type = type(old_v[0]) if len(old_v) > 0 else str
+            sub_conf.__dict__[last_name] = [_getv(ele_type, z) for z in v_toassign]
         else:
             sub_conf.__dict__[last_name] = _getv(item_type, v)
         # return (name, old value, new value)
@@ -111,14 +126,14 @@ class Conf(object):
         for n, v in d.items():
             name_list = name_maps.get(n, None)
             if name_list is None:
-                bad_ones.append("Unknown config %s=%s" % (n, v))
+                bad_ones.append(f"Unknown config {n}={v}")
                 continue
             if len(name_list) != 1:
-                bad_ones.append("Bad(ambiguous or non-exist) config %s=%s, -> %s" % (n, v, name_list))
+                bad_ones.append(f"Bad(ambiguous or non-exist) config {n}={v}, -> {name_list}")
                 continue
             full_name = name_list[0]
-            _, _, new_v = self._do_update(full_name, v)
-            good_ones.append("Update config '%s=%s': %s to %s" % (n,v,full_name,new_v))
+            _, old_v, new_v = self._do_update(full_name, v)
+            good_ones.append(f"Update config '{n}={v}': {full_name} = {old_v} -> {new_v}")
         return good_ones, bad_ones
 
     def update_from_kwargs(self, **kwargs):

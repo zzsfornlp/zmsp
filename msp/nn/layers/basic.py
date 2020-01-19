@@ -3,6 +3,8 @@
 from ..backends import BK
 from ..backends.common import get_unique_name
 
+from msp.utils import extract_stack
+
 # with special None-Rule for turning off refresh
 class RefreshOptions(object):
     def __init__(self, training=True, hdrop=0., idrop=0., gdrop=0., edrop=0., dropmd=0., fix_drop=False, trainable=True, fix_set=()):
@@ -38,7 +40,8 @@ def NoFixRop(): return RefreshOptions(fix_drop=False, fix_set=("fix_drop", ))
 
 # helpers
 class ActivationHelper(object):
-    ACTIVATIONS = {"tanh": BK.tanh, "softmax": BK.softmax, "relu": BK.relu, "elu": BK.elu, "linear": lambda x:x}
+    ACTIVATIONS = {"tanh": BK.tanh, "softmax": BK.softmax, "relu": BK.relu, "elu": BK.elu,
+                   "sigmoid": BK.sigmoid, "linear": lambda x:x}
     # reduction for seq after conv
     POOLINGS = {"max": lambda x: BK.max(x, -2)[0], "avg": lambda x: BK.avg(x, -2)}
 
@@ -72,6 +75,7 @@ class BasicNode(object):
         self.rop = init_rop
         #
         self.parent = None      # only one parent who owns this node (controlling refresh)!
+        self.pc.nnc_push(self.name)
 
     def get_unique_name(self, name):
         return get_unique_name(self.name_dict, name)
@@ -105,7 +109,7 @@ class BasicNode(object):
         return input_dims
 
     # create param from PC
-    def add_param(self, name, shape, init=None, lookup=False):
+    def add_param(self, name, shape, init=None, lookup=False, check_stack=True):
         if init is None:
             w = BK.get_params_init(shape, "default", lookup)
         elif isinstance(init, str):
@@ -113,13 +117,14 @@ class BasicNode(object):
         else:
             w = init
         name = self.get_unique_name(name)
-        combined_name = self.name + "/" + name
+        combined_name = self.pc.nnc_name(self.name, check_stack) + "/" + name
         ret = self.pc.param_new(combined_name, shape, w, lookup)
         self.params[name] = ret
         return ret
 
     # only recording the sub-node, which is built previously
     def add_sub_node(self, name, node):
+        self.pc.nnc_pop(node.name)
         assert isinstance(node, BasicNode), "Subnodes should be a Node!"
         name = self.get_unique_name(name)
         if node.parent is None:
@@ -128,6 +133,14 @@ class BasicNode(object):
         else:
             self.temp_nodes[name] = node
         return node
+
+    # get params recursively (owned subnodes)
+    def get_parameters(self, recursively=True):
+        ret = list(self.params.values())
+        if recursively:
+            for node in self.sub_nodes.values():
+                ret.extend(node.get_parameters(recursively))
+        return ret
 
 # commonly used Nodes
 class Dropout(BasicNode):
@@ -148,7 +161,8 @@ class Dropout(BasicNode):
         #
         r = self.rop
         drop = self.drop_getter_(r)
-        if not r.training:      # another overall switch
+        # todo(+3): another overall switch, not quite elegant!
+        if not r.training:
             self.f_ = lambda x: x
         else:
             self.f_ = Dropout._dropout_f_obtain(r.fix_drop, drop, self.shape)

@@ -3,247 +3,82 @@
 from typing import List
 import numpy as np
 
-from msp.utils import Conf, zlog, JsonRW, Random, zfatal, Constants
-from msp.data import VocabPackage, MultiHelper
-from msp.model import Model
+from msp.utils import zfatal, Constants
+from msp.data import VocabPackage
 from msp.nn import BK
-from msp.nn import refresh as nn_refresh
-from msp.nn.layers import RefreshOptions
-from msp.nn.modules import EmbedConf, MyEmbedder, EncConf, MyEncoder
-from msp.zext.process_train import RConf, ScheduledValue, SVConf
 from msp.zext.seq_helper import DataPadder
 
-from ..common.data import ParseInstance
 from .scorer import GraphScorerConf, GraphScorer
+from ..common.data import ParseInstance
+from ..common.model import BaseParserConf, BaseInferenceConf, BaseTrainingConf, BaseParser
 from ..algo import nmst_unproj, nmst_proj, nmst_greedy, nmarginal_unproj, nmarginal_proj
 
-# overall parser conf
-class GraphParserConf(Conf):
+# =====
+# confs
+
+# decoding conf
+class InferenceConf(BaseInferenceConf):
     def __init__(self):
-        #
-        self.iconf = InferenceConf()
-        self.tconf = TraningConf()
-        # Model
-        self.emb_conf = EmbedConf().init_from_kwargs(dim_word=300, dim_char=30, dim_extras="50", extra_names="pos")
-        self.enc_conf = EncConf().init_from_kwargs(enc_rnn_type="lstm2", enc_hidden=1024, enc_rnn_layer=3)
+        super().__init__()
+        # method
+        self.dec_algorithm = "unproj"       # proj/unproj/greedy
+        self.dec_single_neg = False         # also consider neg links for single-norm (but this might make it unstable for labels?)
+
+# training conf
+class TraningConf(BaseTrainingConf):
+    def __init__(self):
+        super().__init__()
+        # loss functions & general
+        self.loss_div_tok = True        # loss divide by token or by sent?
+        self.loss_function = "prob"     # prob/hinge/mr: probability or hinge/perceptron based or min-risk(partially supported)
+        self.loss_single_sample = 2.0   # sampling negative ones (<1: rate, >=2: number) to balance for single-norm
+
+# overall parser conf
+class GraphParserConf(BaseParserConf):
+    def __init__(self):
+        super().__init__(InferenceConf(), TraningConf())
+        # decoding part
         self.sc_conf = GraphScorerConf()
-        # =====
-        # other options
-        # inputs
-        self.char_max_length = 45
-        # dropouts
-        self.drop_embed = 0.33
-        self.dropmd_embed = 0.
-        self.drop_hidden = 0.33
-        self.gdrop_rnn = 0.33            # gdrop (always fixed for recurrent connections)
-        self.idrop_rnn = 0.33            # idrop for rnn
-        self.fix_drop = True            # fix drop for one run for each dropout
-        self.singleton_unk = 0.5        # replace singleton words with UNK when training
-        self.singleton_thr = 2          # only replace singleton if freq(val) <= this (also decay with 1/freq)
         # =====
         # output modeling (local/global/single, proj/unproj, prob/hinge)
         self.output_normalizing = "local"       # local/global/single/hlocal
         # self.iconf.dec_algorithm = "?"
         # self.tconf.loss_function = "?"
 
-# decoding conf
-class InferenceConf(Conf):
-    def __init__(self):
-        # overall
-        self.batch_size = 32
-        self.infer_single_length = 100  # single-inst batch if >= this length
-        # method
-        self.dec_algorithm = "unproj"       # proj/unproj/greedy
-        self.dec_single_neg = False         # also consider neg links for single-norm (but this might make it unstable for labels?)
-
-# training conf
-class TraningConf(RConf):
-    def __init__(self):
-        super().__init__()
-        # about files
-        self.no_build_dict = False
-        self.load_model = False
-        self.load_process = False
-        # batch arranger
-        self.batch_size = 32
-        self.train_skip_length = 120
-        self.shuffle_train = True
-        # optimizer
-        self.optim = "adam"
-        self.sgd_momentum = 0.85        # for "sgd"
-        self.adam_betas = [0.9, 0.9]     # for "adam"
-        self.adam_eps = 1e-4         # for "adam"
-        self.grad_clip = 5.0
-        # overwrite default ones
-        self.patience = 8
-        self.anneal_times = 10
-        self.max_epochs = 200
-        # loss functions & general
-        self.margin = SVConf().init_from_kwargs(init_val=0.0)
-        self.loss_div_tok = True        # loss divide by token or by sent?
-        self.loss_function = "prob"     # prob/hinge/mr: probability or hinge/perceptron based or min-risk(partially supported)
-        self.loss_single_sample = 2.0   # sampling negative ones (<1: rate, >=2: number) to balance for single-norm
+# =====
+# model
 
 # the model (handle inference & fber by itself, since usually does not involve complex search problem)
-class GraphParser(Model):
-    def __init__(self, gconf: GraphParserConf, vpack: VocabPackage):
-        self.gconf = gconf
-        self.vpack = vpack
-        # ===== Vocab =====
-        self.word_vocab = vpack.get_voc("word")
-        self.char_vocab = vpack.get_voc("char")
-        self.pos_vocab = vpack.get_voc("pos")
-        self.label_vocab = vpack.get_voc("label")
-        # ===== Model =====
-        self.pc = BK.ParamCollection()
-        # embedding
-        self.emb = MyEmbedder(self.pc, gconf.emb_conf, vpack)
-        emb_output_dim = self.emb.get_output_dims()[0]
-        # encoder
-        # todo(0): feed compute-on-the-fly hp
-        gconf.enc_conf._input_dim = emb_output_dim
-        self.enc = MyEncoder(self.pc, gconf.enc_conf)
-        enc_output_dim = self.enc.get_output_dims()[0]
-        # decoder
-        gconf.sc_conf._input_dim = enc_output_dim
-        gconf.sc_conf._num_label = self.label_vocab.trg_len()
-        self.scorer = GraphScorer(self.pc, gconf.sc_conf)
+class GraphParser(BaseParser):
+    def __init__(self, conf: GraphParserConf, vpack: VocabPackage):
+        super().__init__(conf, vpack)
         # ===== Input Specification =====
-        # inputs (word, char, pos) and vocabulary
-        self.need_word = self.emb.has_word
-        self.need_char = self.emb.has_char
-        # todo(warn): currently only allow extra fields for POS
-        self.need_pos = False
-        if len(self.emb.extra_names) > 0:
-            assert len(self.emb.extra_names) == 1 and self.emb.extra_names[0]=="pos"
-            self.need_pos = True
-        #
-        self.word_padder = DataPadder(2, pad_vals=self.word_vocab.pad, mask_range=2)
-        self.char_padder = DataPadder(3, pad_lens=(0, 0, gconf.char_max_length), pad_vals=self.char_vocab.pad)
-        self.pos_padder = DataPadder(2, pad_vals=self.pos_vocab.pad)
         # both head/label padding with 0 (does not matter what, since will be masked)
         self.predict_padder = DataPadder(2, pad_vals=0)
         self.hlocal_padder = DataPadder(3, pad_vals=0.)
         #
-        # ===== For training =====
-        # schedule values
-        tconf = gconf.tconf
-        self.margin = ScheduledValue("margin", tconf.margin)
-        self._scheduled_values = [self.margin]
-        # set optimizer (the init lr here does not matter!)
-        self.scorer.pc.optimizer_set(tconf.optim, 0., tconf)
-        #
-        # others
-        self.previous_refresh_training = True
-        #
-        # todo(warn): hlocal has problems intuitively, maybe not suitable for graph-parser
+        # todo(warn): adding-styled hlocal has problems intuitively, maybe not suitable for graph-parser
         self.norm_single, self.norm_local, self.norm_global, self.norm_hlocal = \
-            [gconf.output_normalizing==z for z in ["single", "local", "global", "hlocal"]]
-        self.loss_prob, self.loss_hinge, self.loss_mr = [gconf.tconf.loss_function==z for z in ["prob", "hinge", "mr"]]
-        self.alg_proj, self.alg_unproj, self.alg_greedy = [gconf.iconf.dec_algorithm==z for z in ["proj", "unproj", "greedy"]]
+            [conf.output_normalizing==z for z in ["single", "local", "global", "hlocal"]]
+        self.loss_prob, self.loss_hinge, self.loss_mr = [conf.tconf.loss_function==z for z in ["prob", "hinge", "mr"]]
+        self.alg_proj, self.alg_unproj, self.alg_greedy = [conf.iconf.dec_algorithm==z for z in ["proj", "unproj", "greedy"]]
     #
 
-    # called before each mini-batch
-    def refresh_batch(self, training):
-        # refresh graph
-        # todo(warn): make sure to remember clear this one
-        nn_refresh()
-        # refresh node rop
-        mconf = self.gconf
-        if not training:
-            if not self.previous_refresh_training:
-                # todo(+1): currently no need to refresh testing mode multiple times
-                return
-            self.previous_refresh_training = False
-            embed_rop = other_rop = RefreshOptions(training=False)        # default no dropout
-        else:
-            embed_rop = RefreshOptions(hdrop=mconf.drop_embed, dropmd=mconf.dropmd_embed, fix_drop=mconf.fix_drop)
-            other_rop = RefreshOptions(hdrop=mconf.drop_embed, idrop=mconf.idrop_rnn, gdrop=mconf.gdrop_rnn, fix_drop=mconf.fix_drop)
-            # todo(warn): once-bug, don't forget this one!!
-            self.previous_refresh_training = True
-        #
-        self.emb.refresh(embed_rop)
-        self.enc.refresh(other_rop)
-        self.scorer.refresh(other_rop)
+    def build_decoder(self):
+        conf = self.conf
+        conf.sc_conf._input_dim = self.enc_output_dim
+        conf.sc_conf._num_label = self.label_vocab.trg_len(False)
+        return GraphScorer(self.pc, conf.sc_conf)
 
-    def update(self, lrate):
-        self.pc.optimizer_update(lrate)
-
-    def get_scheduled_values(self):
-        return self._scheduled_values
-
-    # load and save models
-    # todo(warn): no need to load confs here
-    def load(self, path):
-        self.scorer.pc.load(path)
-        # self.gconf = JsonRW.load_from_file(path+".json")
-        zlog("Load GraphParser model from %s." % path, func="io")
-
-    def save(self, path):
-        self.scorer.pc.save(path)
-        JsonRW.save_to_file(self.gconf, path+".json")
-        zlog("Save GraphParser model to %s." % path, func="io")
-
-    # =====
-    # common procedures
-    def _prepare_input(self, insts, training):
-        word_arr, char_arr, extra_arrs = None, None, []
-        # ===== specially prepare for the words
-        wv = self.word_vocab
-        W_UNK = wv.unk
-        UNK_REP_RATE = self.gconf.singleton_unk
-        UNK_REP_THR = self.gconf.singleton_thr
-        word_act_idxes = []
-        if training and UNK_REP_RATE>0.:    # replace unfreq/singleton words with UNK
-            for one_inst in insts:
-                one_act_idxes = []
-                for one_idx in one_inst.words.idxes:
-                    one_freq = wv.idx2val(one_idx)
-                    if one_freq is not None and one_freq >= 1 and one_freq <= UNK_REP_THR:
-                        if Random.random_bool(UNK_REP_RATE/one_freq):
-                            one_idx = W_UNK
-                    one_act_idxes.append(one_idx)
-                word_act_idxes.append(one_act_idxes)
-        else:
-            word_act_idxes = [z.words.idxes for z in insts]
-        # todo(warn): still need the masks
-        word_arr, mask_arr = self.word_padder.pad(word_act_idxes)
-        # =====
-        if not self.need_word:
-            word_arr = None
-        if self.need_char:
-            chars = [z.chars.idxes for z in insts]
-            char_arr, _ = self.char_padder.pad(chars)
-        if self.need_pos:
-            poses = [z.poses.idxes for z in insts]
-            pos_arr, _ = self.pos_padder.pad(poses)
-            extra_arrs.append(pos_arr)
-        #
-        input_repr = self.emb(word_arr, char_arr, extra_arrs)
-        # [BS, Len, Dim], [BS, Len]
-        return input_repr, mask_arr
-
-    #
-    def pred2real_labels(self, preds):
-        return [self.label_vocab.trg_pred2real(z) for z in preds]
-
-    def real2pred_labels(self, reals):
-        return [self.label_vocab.trg_real2pred(z) for z in reals]
-
-    # shared calculations before final scoring
+    # shared calculations for final scoring
     # -> the scores are masked with PRAC_MIN (by the scorer) for the paddings, but not handling diag here!
 
     def _prepare_score(self, insts, training):
-        # ===== calculate
-        # [BS, Len, Di], [BS, Len]
-        input_repr, mask_arr = self._prepare_input(insts, training)
-        # [BS, Len, De]
-        enc_repr = self.enc(input_repr, mask_arr)
-        #
+        input_repr, enc_repr, jpos_pack, mask_arr = self.bter.run(insts, training)
         mask_expr = BK.input_real(mask_arr)
         # am_expr, ah_expr, lm_expr, lh_expr = self.scorer.transform_space(enc_repr)
         scoring_expr_pack = self.scorer.transform_space(enc_repr)
-        return scoring_expr_pack, mask_expr
+        return scoring_expr_pack, mask_expr, jpos_pack
 
     # scoring procedures
     def _score_arc_full(self, scoring_expr_pack, mask_expr, training, margin, gold_heads_expr=None):
@@ -289,7 +124,12 @@ class GraphParser(Model):
 
     # for global-norm + hinge(perceptron-like)-loss
     # [*, m, h, L], [*, m]
-    def _losses_global_hinge(self, full_score_expr, gold_heads_expr, gold_labels_expr, pred_heads_expr, pred_labels_expr):
+    def _losses_global_hinge(self, full_score_expr, gold_heads_expr, gold_labels_expr, pred_heads_expr, pred_labels_expr, mask_expr):
+        return GraphParser.get_losses_global_hinge(full_score_expr, gold_heads_expr, gold_labels_expr, pred_heads_expr, pred_labels_expr, mask_expr)
+
+    # ===== export
+    @staticmethod
+    def get_losses_global_hinge(full_score_expr, gold_heads_expr, gold_labels_expr, pred_heads_expr, pred_labels_expr, mask_expr, clamping=True):
         # combine the last two dimension
         full_shape = BK.get_shape(full_score_expr)
         # [*, m, h*L]
@@ -302,8 +142,15 @@ class GraphParser(Model):
         gold_scores = BK.gather_one_lastdim(combiend_score_expr, gold_combined_idx_expr).squeeze(-1)
         pred_scores = BK.gather_one_lastdim(combiend_score_expr, pred_combined_idx_expr).squeeze(-1)
         # todo(warn): be aware of search error!
-        hinge_losses = BK.clamp(pred_scores - gold_scores, min=0.)
-        return hinge_losses
+        # hinge_losses = BK.clamp(pred_scores - gold_scores, min=0.)  # this is previous version
+        hinge_losses = pred_scores - gold_scores  # [*, len]
+        if clamping:
+            valid_losses = ((hinge_losses*mask_expr)[:, 1:].sum(-1) > 0.).float().unsqueeze(-1)  # [*, 1]
+            return hinge_losses * valid_losses
+        else:
+            # for this mode, will there be problems of search error? Maybe rare.
+            return hinge_losses
+    # =====
 
     # for global-norm + prob-loss
     def _losses_global_prob(self, full_score_expr, gold_heads_expr, gold_labels_expr, marginals_expr, mask_expr):
@@ -377,7 +224,7 @@ class GraphParser(Model):
         elif self.alg_greedy:
             return nmst_greedy(full_score_expr, maske_expr, lengths_arr, labeled=True, ret_arr=True)
         else:
-            zfatal("Unknown decoding algorithm " + self.gconf.iconf.dec_algorithm)
+            zfatal("Unknown decoding algorithm " + self.conf.iconf.dec_algorithm)
             return None
 
     # expr[BS, m, h, L], arr[BS] -> expr[BS, m, h, L]
@@ -387,17 +234,26 @@ class GraphParser(Model):
         elif self.alg_proj:
             marginals_expr = nmarginal_proj(full_score_expr, maske_expr, lengths_arr, labeled=True)
         else:
-            zfatal("Unsupported marginal-calculation for the decoding algorithm of " + self.gconf.iconf.dec_algorithm)
+            zfatal("Unsupported marginal-calculation for the decoding algorithm of " + self.conf.iconf.dec_algorithm)
             marginals_expr = None
         return marginals_expr
 
     # ===== main methods: training and decoding
+    # only getting scores
+    def score_on_batch(self, insts: List[ParseInstance]):
+        with BK.no_grad_env():
+            self.refresh_batch(False)
+            scoring_expr_pack, mask_expr, jpos_pack = self._prepare_score(insts, False)
+            full_arc_score = self._score_arc_full(scoring_expr_pack, mask_expr, False, 0.)
+            full_label_score = self._score_label_full(scoring_expr_pack, mask_expr, False, 0.)
+            return full_arc_score, full_label_score
+
     # full score and inference
-    def inference_on_batch(self, insts: List[ParseInstance]):
+    def inference_on_batch(self, insts: List[ParseInstance], **kwargs):
         with BK.no_grad_env():
             self.refresh_batch(False)
             # ===== calculate
-            scoring_expr_pack, mask_expr = self._prepare_score(insts, False)
+            scoring_expr_pack, mask_expr, jpos_pack = self._prepare_score(insts, False)
             full_arc_score = self._score_arc_full(scoring_expr_pack, mask_expr, False, 0.)
             full_label_score = self._score_label_full(scoring_expr_pack, mask_expr, False, 0.)
             # normalizing scores
@@ -410,7 +266,7 @@ class GraphParser(Model):
                 # normalize at m dimension, ignore each nodes's self-finish step.
                 full_score = BK.log_softmax(full_arc_score, -2).unsqueeze(-1) + BK.log_softmax(full_label_score, -1)
             elif self.norm_single and self.loss_prob:
-                if self.gconf.iconf.dec_single_neg:
+                if self.conf.iconf.dec_single_neg:
                     # todo(+2): add all-neg for prob explanation
                     full_arc_probs = BK.sigmoid(full_arc_score)
                     full_label_probs = BK.sigmoid(full_label_score)
@@ -427,6 +283,10 @@ class GraphParser(Model):
             mst_heads_arr, mst_labels_arr, mst_scores_arr = self._decode(full_score, mask_expr, np.asarray(mst_lengths, dtype=np.int32))
             if final_exp_score:
                 mst_scores_arr = np.exp(mst_scores_arr)
+            # jpos prediction (directly index, no converting as in parsing)
+            jpos_preds_expr = jpos_pack[2]
+            has_jpos_pred = jpos_preds_expr is not None
+            jpos_preds_arr = BK.get_value(jpos_preds_expr) if has_jpos_pred else None
             # ===== assign
             info = {"sent": len(insts), "tok": sum(mst_lengths)-len(insts)}
             mst_real_labels = self.pred2real_labels(mst_labels_arr)
@@ -435,11 +295,13 @@ class GraphParser(Model):
                 one_inst.pred_heads.set_vals(mst_heads_arr[one_idx][:cur_length])      # directly int-val for heads
                 one_inst.pred_labels.build_vals(mst_real_labels[one_idx][:cur_length], self.label_vocab)
                 one_inst.pred_par_scores.set_vals(mst_scores_arr[one_idx][:cur_length])
+                if has_jpos_pred:
+                    one_inst.pred_poses.build_vals(jpos_preds_arr[one_idx][:cur_length], self.bter.pos_vocab)
             return info
 
     # list(mini-batch) of annotated instances
     # optional results are written in-place? return info.
-    def fb_on_batch(self, annotated_insts, training=True):
+    def fb_on_batch(self, annotated_insts, training=True, loss_factor=1, **kwargs):
         self.refresh_batch(training)
         margin = self.margin.value
         # gold heads and labels
@@ -448,7 +310,7 @@ class GraphParser(Model):
         gold_heads_expr = BK.input_idx(gold_heads_arr)  # [BS, Len]
         gold_labels_expr = BK.input_idx(gold_labels_arr)  # [BS, Len]
         # ===== calculate
-        scoring_expr_pack, mask_expr = self._prepare_score(annotated_insts, training)
+        scoring_expr_pack, mask_expr, jpos_pack = self._prepare_score(annotated_insts, training)
         full_arc_score = self._score_arc_full(scoring_expr_pack, mask_expr, training, margin, gold_heads_expr)
         #
         final_losses = None
@@ -462,7 +324,7 @@ class GraphParser(Model):
                     losses_heads = BK.loss_nll(full_arc_score, gold_heads_expr)
                     losses_labels = BK.loss_nll(select_label_score, gold_labels_expr)
                 elif self.norm_single:
-                    single_sample = self.gconf.tconf.loss_single_sample
+                    single_sample = self.conf.tconf.loss_single_sample
                     losses_heads = self._losses_single(full_arc_score, gold_heads_expr, single_sample, is_hinge=False)
                     losses_labels = self._losses_single(select_label_score, gold_labels_expr, single_sample, is_hinge=False)
                 # simply adding
@@ -472,7 +334,7 @@ class GraphParser(Model):
                     losses_heads = BK.loss_hinge(full_arc_score, gold_heads_expr)
                     losses_labels = BK.loss_hinge(select_label_score, gold_labels_expr)
                 elif self.norm_single:
-                    single_sample = self.gconf.tconf.loss_single_sample
+                    single_sample = self.conf.tconf.loss_single_sample
                     losses_heads = self._losses_single(full_arc_score, gold_heads_expr, single_sample, is_hinge=True, margin=margin)
                     losses_labels = self._losses_single(select_label_score, gold_labels_expr, single_sample, is_hinge=True, margin=margin)
                 # simply adding
@@ -502,7 +364,7 @@ class GraphParser(Model):
                 if self.alg_proj:
                     # todo(+N): deal with search-error-like problem, discard unproj neg losses (score>weighted-avg),
                     #  but this might be too loose, although the unproj edges are few?
-                    gold_unproj_arr, _ = self.predict_padder.pad([z.unprojs.vals for z in annotated_insts])
+                    gold_unproj_arr, _ = self.predict_padder.pad([z.unprojs for z in annotated_insts])
                     gold_unproj_expr = BK.input_real(gold_unproj_arr)  # [BS, Len]
                     comparing_expr = Constants.REAL_PRAC_MIN * (1. - gold_unproj_expr)
                     final_losses = BK.max_elem(final_losses, comparing_expr)
@@ -512,7 +374,7 @@ class GraphParser(Model):
                 pred_labels_expr = BK.input_idx(pred_labels_arr)  # [BS, Len]
                 #
                 final_losses = self._losses_global_hinge(full_score, gold_heads_expr, gold_labels_expr,
-                                                         pred_heads_expr, pred_labels_expr)
+                                                         pred_heads_expr, pred_labels_expr, mask_expr)
             elif self.loss_mr:
                 # todo(+N): Loss = -Reward = \sum marginals, which requires gradients on marginal-one-edge, or marginal-two-edges
                 raise NotImplementedError("Not implemented for global-loss + mr.")
@@ -532,13 +394,17 @@ class GraphParser(Model):
             losses_arc[:, 1] += losses_arc[:, 0]
             final_losses = losses_arc + losses_labels
         #
+        # jpos loss? (the same mask as parsing)
+        jpos_losses_expr = jpos_pack[1]
+        if jpos_losses_expr is not None:
+            final_losses += jpos_losses_expr
         # collect loss with mask, also excluding the first symbol of ROOT
         final_losses_masked = (final_losses * mask_expr)[:, 1:]
         final_loss_sum = BK.sum(final_losses_masked)
         # divide loss by what?
         num_sent = len(annotated_insts)
         num_valid_tok = sum(len(z) for z in annotated_insts)
-        if self.gconf.tconf.loss_div_tok:
+        if self.conf.tconf.loss_div_tok:
             final_loss = final_loss_sum / num_valid_tok
         else:
             final_loss = final_loss_sum / num_sent
@@ -546,21 +412,8 @@ class GraphParser(Model):
         final_loss_sum_val = float(BK.get_value(final_loss_sum))
         info = {"sent": num_sent, "tok": num_valid_tok, "loss_sum": final_loss_sum_val}
         if training:
-            BK.backward(final_loss)
+            BK.backward(final_loss, loss_factor)
         return info
-
-    # =====
-    # special routine
-    def aug_words_and_embs(self, aug_vocab, aug_wv):
-        orig_vocab = self.word_vocab
-        orig_arr = self.emb.word_embed.E.detach().cpu().numpy()
-        # todo(+2): find same-spelling words in the original vocab if not-hit in the extra_embed?
-        aug_arr = aug_vocab.filter_embed(aug_wv, init_nohit=0.)
-        new_vocab, new_arr = MultiHelper.aug_vocab_and_arr(orig_vocab, orig_arr, aug_vocab, aug_arr)
-        # assign
-        self.word_vocab = new_vocab
-        self.emb.word_embed.replace_weights(new_arr)
-        return new_vocab
 
 # pdb:
 # b tasks/zdpar/graph/parser:232

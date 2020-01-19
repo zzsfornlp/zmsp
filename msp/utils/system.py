@@ -1,6 +1,6 @@
 # about system information
 
-import sys, os, subprocess
+import sys, os, subprocess, traceback, glob
 from .log import zopen, zlog
 from .check import zcheck
 
@@ -64,3 +64,20 @@ class FileHelper(object):
             if len(line) == 0:
                 break
         return lines
+
+    @staticmethod
+    def glob(pathname, assert_exist=False, assert_only_one=False):
+        files = glob.glob(pathname)
+        if assert_only_one:
+            assert len(files) == 1
+        elif assert_exist:  # only_one leads to exists
+            assert len(files) > 0
+        return files
+
+# get tracebacks
+def extract_stack(num=-1):
+    # exclude this frame
+    frames = traceback.extract_stack()[1:]
+    if num > 0:
+        frames = frames[:num]
+    return frames

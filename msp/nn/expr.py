@@ -38,6 +38,13 @@ class ExprWrapper(object):
     def val(self):
         return ExprWrapperPool.get(self.id)
 
+    # bsize == 1
+    @staticmethod
+    def make_unit(val):
+        ew = ExprWrapper(val, 1)
+        s = SlicedExpr(ew, 0)
+        return s
+
     # get raw value
     def get_val(self, item):
         return self.val[item]
@@ -54,42 +61,47 @@ class SlicedExpr(object):
         self.ew = ew
         self.slice_idx = slice_idx
 
+    def __repr__(self):
+        return f"[{self.ew.id}]({self.slice_idx}/{self.ew.bsize})"
+
 # ===== Select & Combine =====
 class SliceManager(object):
-    @staticmethod
-    def _check_full(idxes, length):
-        return len(idxes) == length and all(i==v for i,v in enumerate(idxes))
+    # --
+    # todo(warn): deprecated by utils.Helper.check_is_range
+    # @staticmethod
+    # def _check_full(idxes, length):
+    #     return len(idxes) == length and all(i==v for i,v in enumerate(idxes))
 
     # return: list of ew, list of list of slice-idx, tracking-idx(original)
-    # todo(warn): lose original order of slices
-    @staticmethod
-    def collect_slices(slices):
-        ews = []     # list of EW
-        idxes = []     # list of list of (sidx, ori_idx)
-        # scan slices and group
-        tmp_id2idx = {}
-        for ori_idx, s in enumerate(slices):
-            one_ew, one_sidx = s.ew, s.slice_idx
-            ew_id = one_ew.id
-            #
-            if ew_id not in tmp_id2idx:
-                tmp_id2idx[ew_id] = len(ews)
-                ews.append(one_ew)
-                idxes.append([])
-            #
-            idx_in_vals = tmp_id2idx[ew_id]
-            idxes[idx_in_vals].append((one_sidx, ori_idx))
-        # sort and split
-        slice_idxes, origin_idxes = [], []
-        for one_idx, one_ew in zip(idxes, ews):
-            one_idx.sort()      # low-idx to high-idx
-            one_slice_idxes = [x[0] for x in one_idx]
-            if SliceManager._check_full(one_slice_idxes, one_ew.bsize):
-                slice_idxes.append(None)
-            else:
-                slice_idxes.append(one_slice_idxes)
-            origin_idxes.append([x[1] for x in one_idx])
-        return ews, slice_idxes, origin_idxes
+    # todo(warn): lose original order of slices; todo(warn): might be too complex
+    # @staticmethod
+    # def collect_slices(slices):
+    #     ews = []     # list of EW
+    #     idxes = []     # list of list of (sidx, ori_idx)
+    #     # scan slices and group
+    #     tmp_id2idx = {}
+    #     for ori_idx, s in enumerate(slices):
+    #         one_ew, one_sidx = s.ew, s.slice_idx
+    #         ew_id = one_ew.id
+    #         #
+    #         if ew_id not in tmp_id2idx:
+    #             tmp_id2idx[ew_id] = len(ews)
+    #             ews.append(one_ew)
+    #             idxes.append([])
+    #         #
+    #         idx_in_vals = tmp_id2idx[ew_id]
+    #         idxes[idx_in_vals].append((one_sidx, ori_idx))
+    #     # sort and split
+    #     slice_idxes, origin_idxes = [], []
+    #     for one_idx, one_ew in zip(idxes, ews):
+    #         one_idx.sort()      # low-idx to high-idx
+    #         one_slice_idxes = [x[0] for x in one_idx]
+    #         if Helper.check_is_range(one_slice_idxes, one_ew.bsize):
+    #             slice_idxes.append(None)
+    #         else:
+    #             slice_idxes.append(one_slice_idxes)
+    #         origin_idxes.append([x[1] for x in one_idx])
+    #     return ews, slice_idxes, origin_idxes
 
     # return list of ew, list of combined indexes (retaining the original order)
     @staticmethod
@@ -109,7 +121,7 @@ class SliceManager(object):
             idx_in_vals = tmp_id2idx[ew_id]
             bidxes.append(tmp_bidx_bases[idx_in_vals]+one_sidx)
         # check for perfect match
-        if SliceManager._check_full(bidxes, tmp_bidx_bases[-1]):
+        if Helper.check_is_range(bidxes, tmp_bidx_bases[-1]):
             bidxes = None
         return values, bidxes
 
@@ -122,11 +134,12 @@ class SliceManager(object):
             for name in v0:
                 next_values = [z[name] for z in values]
                 ret[name] = SliceManager._combine_recursive(next_values, bidxes)
-        elif isinstance(v0, list):
+        elif isinstance(v0, (list, tuple)):
             ret = []
             for idx in range(len(v0)):
                 next_values = [z[idx] for z in values]
                 ret.append(SliceManager._combine_recursive(next_values, bidxes))
+            # todo(+2): need to revert back to tuple if tuple?
         else:
             zcheck(BK.is_expr(v0), "Illegal combine value type.")
             # todo(warn): first concat and then select, may use more memory

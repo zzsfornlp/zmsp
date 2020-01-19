@@ -1,18 +1,28 @@
 #
 
-# The Mingle Structured Prediction (v0plus) package
+# The Mingled Structured Prediction (v0plus) package
 # by zzs (from 2018.02 - now)
 
-# dependencies: pytorch, numpy, scipy, gensim, cython
+# dependencies: pytorch, numpy, scipy, gensim, cython, pybind11
+# conda install pytorch numpy scipy gensim cython pybind11
 
 VERSION_MAJOR = 0
-VERSION_MINOR = 0
+VERSION_MINOR = 1
 VERSION_PATCH = 1
+VERSION_STATUS = "dev"
 
+# TODO(!)
+# nn optimizer / param groups?
+# check nn module (for simplification?)
+# new model/training/testing scheme -> make it more modularized
+# Conf's init: what types
+# dropout setting: use training/testing(with/wo)-mode
+# easy-to-use calculations result-representing tools for analysis
+# various tools for python as the replacement of direct bash shell
+# gru and cnn have problems?
 
 def version():
-    return (VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH)
-
+    return (VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH, VERSION_STATUS)
 
 __version__ = ".".join(str(z) for z in version())
 
@@ -26,9 +36,9 @@ __version__ = ".".join(str(z) for z in version())
 # !!: (again-corrected) The goal is not to build a whole framework, but several useful pieces.
 
 # conventions
-# todo(0)/todo(warn): simply warning
-# todo(+N): need what level of efforts
-# TODO(!): unfinished, real todo
+# todo(0)/todo(warn)/todo(note): simply warning or noting
+# todo(+N): need what level of efforts, +N means lots of efforts
+# TODO: unfinished, real todo
 
 # hierarchically: msp -> scripts / tasks, no reverse ref allowed!
 

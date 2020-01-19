@@ -47,7 +47,6 @@ def _common_nmst(CPU_f, scores_expr, mask_expr, lengths_arr, labeled, ret_arr):
 def nmst_unproj(scores_expr, mask_expr, lengths_arr, labeled=True, ret_arr=False):
     return _common_nmst(mst_unproj, scores_expr, mask_expr, lengths_arr, labeled, ret_arr)
 
-# TODO(!): still have bugs in proj!
 def nmst_proj(scores_expr, mask_expr, lengths_arr, labeled=True, ret_arr=False):
     return _common_nmst(mst_proj, scores_expr, mask_expr, lengths_arr, labeled, ret_arr)
 
@@ -90,9 +89,11 @@ def _ensure_margins_norm(marginals_expr):
     full_shape = BK.get_shape(marginals_expr)
     combined_marginals_expr = marginals_expr.view(full_shape[:-2] + [-1])       # [BS, Len, Len*L]
     # should be 1., but for no-solution situation there can be small values (+1 for all in this case, norm later)
-    combined_marginals_expr += (combined_marginals_expr.sum(dim=-1, keepdim=True) < 1e-10).float()
+    # make 0./0. = 0.
+    combined_marginals_sum = combined_marginals_expr.sum(dim=-1, keepdim=True)
+    combined_marginals_sum += (combined_marginals_sum < 1e-5).float() * 1e-5
     # then norm
-    combined_marginals_expr /= combined_marginals_expr.sum(dim=-1, keepdim=True)
+    combined_marginals_expr /= combined_marginals_sum
     return combined_marginals_expr.view(full_shape)
 
 # [BS, Len, Len, L], [BS, Len] -> [BS, Len, Len, L]
@@ -102,6 +103,7 @@ def _ensure_margins_norm(marginals_expr):
 # todo(warn): also the order of dimension is slightly different than the original algorithm, here we have [m, h]
 # todo(+1): simple for unlabeled situation
 # todo(warn): be careful about Numerical Unstability when the matrix is not inversable, which will make it 0/0!!
+# todo(note): mask out non-valid values (diag, padding, root-mod), need to be careful about this?
 def nmarginal_unproj(scores_expr, mask_expr, lengths_arr, labeled=True):
     assert labeled
     with BK.no_grad_env():
@@ -111,11 +113,15 @@ def nmarginal_unproj(scores_expr, mask_expr, lengths_arr, labeled=True):
         diag1_m = BK.eye(maxlen).double()        # [m, h]
         scores_expr_d = scores_expr.double()
         mask_expr_d = mask_expr.double()
+        invalid_pad_expr_d = 1.-mask_expr_d
+        # [*, m, h]
+        full_invalid_d = (diag1_m + invalid_pad_expr_d.unsqueeze(-1) + invalid_pad_expr_d.unsqueeze(-2)).clamp(0., 1.)
+        full_invalid_d[:, 0] = 1.
         #
         # first make it unlabeled by sum-exp
         scores_unlabeled = BK.logsumexp(scores_expr_d, dim=-1)    # [BS, m, h]
-        # force small values at diag entries
-        scores_unlabeled_diag_neg = scores_unlabeled + Constants.REAL_PRAC_MIN * diag1_m
+        # force small values at diag entries and padded ones
+        scores_unlabeled_diag_neg = scores_unlabeled + Constants.REAL_PRAC_MIN * full_invalid_d
         # # minus the MaxElement to make it more stable with larger values, to make it numerically stable.
         # [BS, m, h]
         # todo(+N): since one and only one Head is selected, thus minus by Max will make it the same?
@@ -156,12 +162,14 @@ def nmarginal_unproj(scores_expr, mask_expr, lengths_arr, labeled=True):
         #
         # det and inverse; using LU decomposition to hit two birds with one stone.
         diag1_m00 = BK.eye(maxlen-1).double()
-        LM00_inv, LM00_lu = diag1_m00.gesv(LM00)                # [BS, m-1, h-1]
+        # deprecated operation
+        # LM00_inv, LM00_lu = diag1_m00.gesv(LM00)                # [BS, m-1, h-1]
         # # todo(warn): lacking P here, but the partition should always be non-negative!
         # LM00_det = BK.abs((LM00_lu*diag1_m00).sum(-1).prod(-1))         # [BS, ]
         # d(logZ)/d(LM00) = (LM00^-1)^T
         # # directly inverse (need pytorch >= 1.0)
         # LM00_inv = LM00.inverse()
+        LM00_inv = BK.get_inverse(LM00, diag1_m00)
         LM00_grad = LM00_inv.transpose(-1, -2)              # [BS, m-1, h-1]
         # marginal(m,h) = d(logZ)/d(score(m,h)) = d(logZ)/d(LM00) * d(LM00)/d(score(m,h)) = INV_mm - INV_mh
         # padding and minus
@@ -192,7 +200,8 @@ def nmarginal_unproj(scores_expr, mask_expr, lengths_arr, labeled=True):
         #     assert False, "Problem here"
         #
         # back to plain float32
-        ret = marginals_labeled.float()
+        masked_marginals_labeled = marginals_labeled * (1.-full_invalid_d).unsqueeze(-1)
+        ret = masked_marginals_labeled.float()
         return _ensure_margins_norm(ret)
 
 # b tasks/zdpar/algo/nmst:102

@@ -130,7 +130,7 @@ class StatRecorder(object):
 
     @staticmethod
     def guess_default_handler(name, v):
-        if isinstance(name, Iterable):
+        if isinstance(name, (tuple, list)):
             name = str(name[0])
         fileds = name.split("_")
         start_name = fileds[0]

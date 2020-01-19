@@ -6,12 +6,20 @@ from torch.nn.parameter import Parameter
 from torch.nn import functional as F
 from torch.nn.utils import clip_grad_norm_
 import numpy as np
+from typing import List
 
 from .common import COMMON_CONFIG, get_unique_name, _my_get_params_init
-from msp.utils import zwarn
 
 Expr = torch.Tensor
-DEFAULT_DEVICE = torch.device("cpu")
+CPU_DEVICE = torch.device("cpu")
+DEFAULT_DEVICE = CPU_DEVICE
+
+# types
+float32 = torch.float32
+float64 = torch.float64
+int32 = torch.int32
+int64 = torch.int64
+uint8 = torch.uint8
 
 def init():
     torch.set_num_threads(COMMON_CONFIG.num_threads)
@@ -58,20 +66,90 @@ def get_params_init(shape, init, lookup):
         elif init == "default" or init == "glorot":
             nn.init.xavier_uniform_(x)
         elif init == "ortho":
-            nn.init.orthogonal_(x)
+            # todo(note): assume squared matrices
+            assert len(shape)==2 and (shape[0]%shape[1]==0 or shape[1]%shape[0]==0), "Invalid shape for ortho init"
+            s0, s1 = shape
+            if s0>s1:
+                for i in range(s0//s1):
+                    nn.init.orthogonal_(x[i*s1:(i+1)*s1,:])
+            else:
+                for i in range(s1//s0):
+                    nn.init.orthogonal_(x[:,i*s0:(i+1)*s0])
         else:
             assert False, "Unknown init method for BKTR: "+init
     return x
 
+# todo(note): similar to Torch.Optimizer, but with extra settings
+class Optim:
+    def __init__(self, optim_type, lrf_sv, oconf, params):
+        self.params_ = params
+        self.lrf_sv_ = lrf_sv
+        if optim_type == "sgd":
+            opt_ = optim.SGD(params, lr=0., momentum=oconf.sgd_momentum, weight_decay=oconf.weight_decay)
+        elif optim_type == "adagrad":
+            opt_ = optim.Adagrad(params, lr=0., weight_decay=oconf.weight_decay)
+        elif optim_type == "adam":
+            opt_ = optim.Adam(params, lr=0., betas=oconf.adam_betas, eps=oconf.adam_eps, weight_decay=oconf.weight_decay)
+        elif optim_type == "adadelta":
+            opt_ = optim.Adadelta(params, lr=0., rho=oconf.adadelta_rho, weight_decay=oconf.weight_decay)
+        else:
+            raise NotImplementedError("Unknown optim %s." % optim_type)
+        self.opt_ = opt_
+        #
+        self.no_step_lrate0_ = oconf.no_step_lrate0
+        self.cached_lrate_ = 0.
+        self.grad_clip_ = oconf.grad_clip
+
+    def update(self, overall_lrate, grad_factor):
+        cur_lrate = overall_lrate * float(self.lrf_sv_)
+        if self.cached_lrate_ != cur_lrate:
+            # schedule lrate, do as lr_scheduler does
+            for param_group in self.opt_.param_groups:
+                param_group['lr'] = cur_lrate
+            self.cached_lrate_ = cur_lrate
+        if cur_lrate<=0. and self.no_step_lrate0_:
+            # no update
+            self.opt_.zero_grad()
+        else:
+            # todo(warn): useful for batch-split, div grad by splits
+            if grad_factor != 1.:
+                for p in self.params_:
+                    if p.grad is not None:
+                        p.grad.data.mul_(grad_factor)
+            if self.grad_clip_ > 0.:
+                clip_grad_norm_(self.params_, self.grad_clip_)
+            self.opt_.step()
+            self.opt_.zero_grad()
+
 # todo(warn): here nn.Module simply used for Param Collection
-class ParamCollection(object):
-    def __init__(self):
+class ParamCollection:
+    def __init__(self, new_name_conv=True):
         self.model_ = nn.Module()
-        self.optim_ = None
-        self.prev_lrate_ = None
-        self.grad_clip_ = None
+        self.optims_ = []
+        self.paramid2optid_ = {}  # id -> list
         #
         self.name_dict = {}
+        self.new_name_conv = new_name_conv
+        self.new_name_conv_stack = []
+
+    # =====
+    def nnc_push(self, name):
+        self.new_name_conv_stack.append(name)
+
+    def nnc_pop(self, name):
+        # todo(note): there can be out-of-order because of wrappers
+        ridx = len(self.new_name_conv_stack) - 1 - self.new_name_conv_stack[::-1].index(name)
+        x = self.new_name_conv_stack.pop(ridx)
+        assert x == name, "Name unmatched!!"
+
+    def nnc_name(self, name, check_stack=True):
+        if check_stack:
+            assert name == self.new_name_conv_stack[-1]
+        if self.new_name_conv:
+            return "/".join(self.new_name_conv_stack)
+        else:
+            return name
+    # =====
 
     def get_unique_name(self, name):
         return get_unique_name(self.name_dict, name)
@@ -83,6 +161,13 @@ class ParamCollection(object):
         self.model_.register_parameter(name, p)
         return p
 
+    # special mode
+    # todo(WARN): for changing names while stacking modules; not elegant!
+    def param_rename(self, old_name, new_name):
+        p = self.model_.__getattr__(old_name)
+        self.model_.__delattr__(old_name)
+        self.model_.register_parameter(new_name, p)
+
     # freeze param
     def param_set_trainable(self, p, trainable):
         bool_trainable = bool(trainable)
@@ -90,72 +175,85 @@ class ParamCollection(object):
             p.requires_grad = bool_trainable
 
     # tconf should have other properties: momentum, grad_clip,
-    def optimizer_set(self, optim_type, init_lrate, tconf):
-        if optim_type == "sgd":
-            self.optim_ = optim.SGD(self.model_.parameters(), lr=init_lrate, momentum=tconf.sgd_momentum)
-        elif optim_type == "adagrad":
-            self.optim_ = optim.Adagrad(self.model_.parameters(), lr=init_lrate)
-        elif optim_type == "adam":
-            self.optim_ = optim.Adam(self.model_.parameters(), lr=init_lrate, betas=tconf.adam_betas, eps=tconf.adam_eps)
-        else:
-            raise NotImplementedError("Unknown optim %s." % optim_type)
-        self.prev_lrate_ = init_lrate
-        self.grad_clip_ = tconf.grad_clip
+    def optimizer_set(self, optim_type, lrf_sv, oconf, params: List = None, check_repeat=True, check_full=False):
+        if params is None:
+            params = self.model_.parameters()
+        optim = Optim(optim_type, lrf_sv, oconf, params)
+        cur_optid = len(self.optims_)
+        self.optims_.append(optim)
+        # track all params
+        for p in params:
+            paramid = id(p)
+            if paramid not in self.paramid2optid_:
+                self.paramid2optid_[paramid] = [cur_optid]
+            else:
+                assert not check_repeat, "Err: repeated params in multiple optimizer!"
+                self.paramid2optid_[paramid].append(paramid)
+        if check_full:
+            for p in self.model_.parameters():
+                assert id(p) in self.paramid2optid_, "Err: failed checking full, there is unadded param"
 
-    def optimizer_update(self, lrate):
-        if self.prev_lrate_ != lrate:
-            # schedule lrate, do as lr_scheduler does
-            for param_group in self.optim_.param_groups:
-                param_group['lr'] = lrate
-            self.prev_lrate_ = lrate
-        if self.grad_clip_ > 0.:
-            clip_grad_norm_(self.model_.parameters(), self.grad_clip_)
-        self.optim_.step()
-        self.model_.zero_grad()
+    def optimizer_update(self, overall_lrate, grad_factor):
+        for optim in self.optims_:
+            optim.update(overall_lrate, grad_factor)
 
     def save(self, path):
         torch.save(self.model_.state_dict(), path)
 
-    def load(self, path):
-        self.model_.load_state_dict(torch.load(path))
+    def load(self, path, strict=True):
+        model = torch.load(path, map_location=DEFAULT_DEVICE)
+        self.model_.load_state_dict(model, strict=strict)
 
 # ===== the functions
 
 # ----- inputs
 
 # (inputs: python data type) -> FloatTensor
-def input_real(inputs):
+def input_real(inputs, device=None):
     if is_expr(inputs):
         return inputs
-    return torch.tensor(inputs, dtype=torch.float32, device=DEFAULT_DEVICE)
+    return torch.tensor(inputs, dtype=torch.float32, device=(DEFAULT_DEVICE if device is None else device))
 
 # (inputs: python data type of indexes) -> LongTensor
-def input_idx(inputs):
+def input_idx(inputs, device=None):
     if is_expr(inputs):
         return inputs
-    return torch.tensor(inputs, dtype=torch.long, device=DEFAULT_DEVICE)
+    return torch.tensor(inputs, dtype=torch.long, device=(DEFAULT_DEVICE if device is None else device))
 
 # (shape: ..., value: float) -> FloatTensor
-def constants(shape, value=0.):
-    return torch.full(shape, value, dtype=torch.float32, device=DEFAULT_DEVICE)
+def constants(shape, value=0., dtype=torch.float32, device=None):
+    return torch.full(shape, value, dtype=dtype, device=(DEFAULT_DEVICE if device is None else device))
 
 #
-def constants_idx(shape, value=0):
-    return torch.full(shape, value, dtype=torch.long, device=DEFAULT_DEVICE)
+def constants_idx(shape, value=0, device=None):
+    return torch.full(shape, value, dtype=torch.long, device=(DEFAULT_DEVICE if device is None else device))
 
 # return 2D eye matrix
-def eye(n):
-    return torch.eye(n, dtype=torch.float32, device=DEFAULT_DEVICE)
+def eye(n, device=None):
+    return torch.eye(n, dtype=torch.float32, device=(DEFAULT_DEVICE if device is None else device))
 
 #
-def arange_idx(*args):
-    return torch.arange(*args, dtype=torch.long, device=DEFAULT_DEVICE)
+def arange_idx(*args, device=None):
+    return torch.arange(*args, dtype=torch.long, device=(DEFAULT_DEVICE if device is None else device))
 
 # (shape: ..., p: rate of 1., mul: multiply) -> Tensor
-def random_bernoulli(shape, p, mul):
-    x = torch.full(shape, p, dtype=torch.float32, device=DEFAULT_DEVICE)
+def random_bernoulli(shape, p, mul, device=None):
+    x = torch.full(shape, p, dtype=torch.float32, device=(DEFAULT_DEVICE if device is None else device))
     r = torch.bernoulli(x) * mul
     return r
+
+#
+def rand(shape, dtype=torch.float32, device=None):
+    return torch.rand(shape, dtype=dtype, device=(DEFAULT_DEVICE if device is None else device))
+
+# move to other device
+def to_device(x, device=None):
+    return x.to(device=(DEFAULT_DEVICE if device is None else device))
+
+#
+def copy(x, device=None):
+    # return torch.tensor(x, dtype=x.dtype, device=(x.device if device is None else device))
+    return x.clone().detach()
 
 # ----- ops
 
@@ -185,6 +283,15 @@ def affine2(input_list):
         last_dim = get_shape(base, -1)
         prefidx_dimensions.append(last_dim)
         return base.view(prefidx_dimensions)
+
+# allow >2d input and unsqueezed shapes, simply use matmul
+def affine3(input_list):
+    bias, base_idx = input_list[0], 1
+    base = 0
+    while base_idx < len(input_list):
+        base = base + torch.matmul(input_list[base_idx + 1], input_list[base_idx].t())
+        base_idx += 2
+    return base + bias
 
 # (t: Tensor, size: how many pieces, dim: ...) -> list of Tensors
 def chunk(t, size, dim=-1):
@@ -230,6 +337,7 @@ def select(t, idxes, dim=0):
 abs = torch.abs
 avg = torch.mean
 bilinear = F.bilinear       # (N,*,in1_features), (N,*,in2_features), (out_features, in1_features, in2_features), (out_features,) -> (N,*,out_features)
+binary_cross_entropy = F.binary_cross_entropy
 binary_cross_entropy_with_logits = F.binary_cross_entropy_with_logits
 clamp = torch.clamp
 diagflat = torch.diagflat
@@ -250,10 +358,11 @@ sigmoid = torch.sigmoid
 softmax = F.softmax
 squeeze = torch.squeeze
 split = torch.split
+sqrt = torch.sqrt
 stack = torch.stack
 sum = torch.sum
 tanh = torch.tanh
-topk = torch.topk
+topk = torch.topk       # todo(warn): return (val, idx)
 transpose = torch.transpose
 unsqueeze = torch.unsqueeze
 where = torch.where
@@ -310,9 +419,37 @@ def multinomial_select(prob, num=1):
     values = torch.gather(prob, -1, idxes)
     return idxes, values
 
+# sampling 1 with gumble
+# argmax(logprob + -log(-log(Unif[0,1]))), return (val, idx)
+# todo(note): keepdim for the output
+def category_sample(logprob, dim=-1, keep_dim=True):
+    G = torch.rand(logprob.shape, dtype=torch.float32, device=DEFAULT_DEVICE)
+    X = logprob-(-G.log()).log()
+    V, I = X.max(dim)
+    if keep_dim:
+        V, I = V.unsqueeze(-1), I.unsqueeze(-1)
+    return V, I
+
 def gather(t, idxes, dim=-1):
     idxes_t = input_idx(idxes)
     return torch.gather(t, dim, idxes_t)
+
+# special gather for the first several dims
+# t: [s1, s2, ..., sn-1, sn, ...]; idx: [s1, s2, ..., sn-1, k]
+def gather_first_dims(t, idxes, dim):
+    t_shape = get_shape(t)
+    if dim < 0:
+        dim = len(t_shape) + dim
+    idxes_t = input_idx(idxes)
+    idx_shape = get_shape(idxes_t)
+    assert t_shape[:dim] == idx_shape[:-1]
+    # flatten and index select
+    t_shape0, t_shape1 = t_shape[:dim+1], t_shape[dim+1:]
+    flatten_t = t.view([-1] + t_shape1)  # [s1*...*sn, ...]
+    basis_t = arange_idx(np.prod(t_shape0[:-1])).view(t_shape0[:-1]) * t_shape0[-1]  # [s1, ..., sn-1]
+    basis_t = (basis_t.unsqueeze(-1) + idxes_t).view(-1)  # [*]
+    output_t0 = torch.index_select(flatten_t, dim=0, index=basis_t)  # [*, ...]
+    return output_t0.view(idx_shape + t_shape1)
 
 # =====
 # values & backward
@@ -327,7 +464,12 @@ def set_value(t, val):
         # avoid recording grad_fn
         t.set_(input_real(val))
 
-def backward(loss):
+def get_cpu_tensor(t):
+    return t.detach().cpu()
+
+def backward(loss, loss_factor: float):
+    if loss_factor != 1.:
+        loss = loss * loss_factor
     loss.backward()
 
 # directly setting param
@@ -347,7 +489,7 @@ def has_nan(t):
 
 # nn.Conv1d
 # parameters already added here
-class CnnOper(object):
+class CnnOper:
     def __init__(self, node, n_input, n_output, n_window):
         # todo(warn): still belong to node
         self.w = node.add_param("w", (n_output, n_input, n_window))
@@ -379,3 +521,30 @@ except:
     from torch.nn.backends.thnn import backend as thnn_backend
     gru_oper = thnn_backend.GRUCell
     lstm_oper = thnn_backend.LSTMCell
+
+# specific one for batched inv
+if int(torch.__version__.split(".")[0])>=1:
+    # only available torch>=1.0.0
+    get_inverse = lambda M, DiagM: M.inverse()
+else:
+    # otherwise use gesv, which is deprecated in some later version
+    get_inverse = lambda M, DiagM: DiagM.gesv(M)[0]
+
+# special routines
+# todo(note): for mask->idx: 1) topk+sort, 2) padding with extra 1s; currently using 2)
+# the inputs should be 1. or 0. (float); [*, L] -> [*, max-count]
+def mask2idx(mask_t, padding_idx=0):
+    mask_shape = get_shape(mask_t)  # [*, L]
+    counts = mask_t.sum(-1).long()  # [*]
+    max_count = counts.max().item()  # int, the max expanding
+    padding_counts = max_count - counts  # [*]
+    max_padding_count = padding_counts.max().item()  # int, the max count of padding
+    pad_t = (arange_idx(max_padding_count) < padding_counts.unsqueeze(-1)).float()  # [*, max_pad]
+    concat_t = concat([mask_t, pad_t], -1)  # [*, L+max_pad]
+    final_shape = mask_shape[:-1] + [max_count]
+    ret_idxes = concat_t.nonzero()[:, -1].reshape(final_shape)
+    # get valid mask and set 0 for invalid ones
+    slen = mask_shape[-1]
+    valid_mask = (ret_idxes < slen).float()
+    ret_idxes[ret_idxes >= slen] = padding_idx
+    return ret_idxes, valid_mask

@@ -47,8 +47,15 @@ class ParserVocabPackage(VocabPackage):
             for inst in extra_stream:
                 for w in word_normer.norm_stream(inst.words.vals):
                     extra_word_set.add(w)
-            # must provide dconf.pretrain_file
-            w2vec = WordVectors.load(dconf.pretrain_file, aug_code=dconf.code_pretrain)
+            # ----- load (possibly multiple) pretrain embeddings
+            # must provide dconf.pretrain_file (there can be multiple pretrain files!)
+            list_pretrain_file, list_code_pretrain = dconf.pretrain_file, dconf.code_pretrain
+            list_code_pretrain.extend([""] * len(list_pretrain_file))  # pad default ones
+            w2vec = WordVectors.load(list_pretrain_file[0], aug_code=list_code_pretrain[0])
+            if len(list_pretrain_file) > 1:
+                w2vec.merge_others([WordVectors.load(list_pretrain_file[i], aug_code=list_code_pretrain[i])
+                                    for i in range(1, len(list_pretrain_file))])
+            # -----
             # first filter according to thresholds
             word_builder.filter(lambda ww, rank, val: (val >= dconf.word_fthres and rank <= dconf.word_rthres) or w2vec.has_key(ww))
             # then add extra ones

@@ -4,3 +4,4 @@
 
 from .embedder import EmbedConf, MyEmbedder
 from .encoder import EncConf, MyEncoder
+from .berter import BerterConf, Berter

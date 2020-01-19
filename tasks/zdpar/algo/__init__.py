@@ -12,4 +12,5 @@ from .nmst import marginal_unproj, marginal_proj, marginal_greedy
 # Tensor versions (can be simply wrappers)
 from .nmst import nmst_unproj, nmst_proj, nmst_greedy
 from .nmst import nmarginal_unproj, nmarginal_proj, nmarginal_greedy
-
+#
+from .hop import hop_decode

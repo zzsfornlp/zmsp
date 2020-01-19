@@ -17,7 +17,7 @@ Needed for manually batching, simply as a pointer+batch-idx.
 
 from .backends import BK
 from .backends.common import COMMON_CONFIG, NIConf
-from .expr import ExprWrapperPool
+from .expr import ExprWrapperPool, ExprWrapper, SliceManager, SlicedExpr
 
 from msp.utils import zlog
 

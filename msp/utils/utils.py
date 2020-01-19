@@ -1,5 +1,5 @@
 # misc
-import json, sys, pickle, re
+import sys, re
 from collections import Iterable
 import numpy as np
 from .log import zopen, zlog
@@ -13,10 +13,10 @@ class Constants(object):
     REAL_PRAC_MAX = float(PRAC_NUM_)
     REAL_PRAC_MIN = -REAL_PRAC_MAX
     #
-    INT_MAX = 2**31-1
-    INT_MIN = -2**31+1
-    REAL_MAX = sys.float_info.max
-    REAL_MIN = -REAL_MAX
+    # INT_MAX = 2**31-1
+    # INT_MIN = -2**31+1
+    # REAL_MAX = sys.float_info.max
+    # REAL_MIN = -REAL_MAX
 
 class StrHelper(object):
     NUM_PATTERN = re.compile(r"[0-9]+|[0-9]+\.[0-9]*|[0-9]+[0-9,]+|[0-9]+\\/[0-9]+|[0-9]+/[0-9]+")
@@ -231,71 +231,18 @@ class Helper(object):
         except StopIteration:
             pass
 
-# io
-# builtin types will not use this!
-class _MyJsonEncoder(json.JSONEncoder):
-    def default(self, one):
-        if hasattr(one, "to_builtin"):
-            return one.to_builtin()
-        else:
-            return one.__dict__
-
-class JsonRW(object):
-    # update from v and return one if one is not builtin, directly return otherwise
-    @staticmethod
-    def _update_return(one, v):
-        if hasattr(one, "from_builtin"):
-            one.from_builtin(v)
-        # todo(+2): is this one OK?
-        elif hasattr(one, "__dict__"):
-            one.__dict__.update(v)
-        else:
-            return v
-        return one
-
-    @staticmethod
-    def load_from_file(one, file_name):
-        with zopen(file_name, 'r') as fd:
-            v = json.load(fd)
-            return JsonRW._update_return(one, v)
-
-    @staticmethod
-    def save_to_file(one, file_name):
-        with zopen(file_name, 'w') as fd:
-            json.dump(one, fd, cls=_MyJsonEncoder)
-
-    @staticmethod
-    def load_from_str(one, s):
-        v = json.loads(s)
-        return JsonRW._update_return(one, v)
-
-    @staticmethod
-    def save_to_str(one):
-        return json.dumps(one, cls=_MyJsonEncoder)
-
     # =====
-    # some useful tools
     @staticmethod
-    def save_list(ones, file_name):
-        with zopen(file_name, 'w') as fd:
-            for one in ones:
-                fd.write(JsonRW.save_to_str(one)+"\n")
+    def check_is_range(idxes, length):
+        return len(idxes) == length and all(i == v for i, v in enumerate(idxes))
 
-    @staticmethod
-    def load_list(file_name):
-        with zopen(file_name) as fd:
-            ones = [JsonRW.load_from_str(None, line) for line in fd]
-        return ones
+class ZObject(object):
+    def __init__(self, m=None):
+        if m is not None:
+            self.update(m)
 
-#
-class PickleRW(object):
-    @staticmethod
-    def read(fname):
-        with open(fname, "rb") as fd:
-            x = pickle.load(fd)
-        return x
-
-    @staticmethod
-    def write(fname, x):
-        with open(fname, "wb") as fd:
-            pickle.dump(x, fd)
+    def update(self, m):
+        if isinstance(m, ZObject):
+            m = m.__dict__
+        for k, v in m.items():
+            setattr(self, k, v)

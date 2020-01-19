@@ -6,7 +6,7 @@ from msp.utils import zcheck, FileHelper
 
 # one instance of parse
 class ConlluToken:
-    def __init__(self, parse, idx, w, up, xp, h, la, enh_hs, enh_ls):
+    def __init__(self, parse, idx, w, up, xp, h, la, enh_hs, enh_ls, misc=None):
         self.parse = parse
         # basic properties (on construction)
         self.idx = idx
@@ -16,6 +16,15 @@ class ConlluToken:
         self.head = h
         self.label = la
         self.label0 = la.split(":")[0] if la is not None else None
+        self.misc = {}
+        if misc is not None and len(misc)>0 and misc != "_":
+            try:
+                for s in misc.split("|"):
+                    k, v = s.split("=")
+                    assert k not in self.misc, f"Err: Repeated key: {k}"
+                    self.misc[k] = v
+            except:
+                pass
         # enhanced dependencies
         self.enh_heads = enh_hs
         self.enh_labels = enh_ls
@@ -23,6 +32,7 @@ class ConlluToken:
         # extra helpful ones (build later, todo(warn) but not for ellip nodes!!)
         # dep-distance and root-distance
         self.ddist = 0      # mod - head
+        self.rdist = -1     # distance to root
         # self.rdist = 0
         # left & right & all child (sorted left-to-right)
         self.lchilds = []
@@ -33,7 +43,17 @@ class ConlluToken:
         self.childs_labels = []
 
     def __repr__(self):
-        return "\t".join(str(z) for z in (self.idx, self.word, self.upos, self.xpos, self.head, self.label0))
+        return "\t".join(str(z) for z in (self.idx, self.word, self.upos, self.xpos, self.head, self.label0, self.misc))
+
+    def __getattr__(self, item):
+        if item in self.__dict__:
+            return self.__dict__[item]
+        else:
+            misc = self.__dict__.get("misc", None)
+            if misc is not None and item in misc:
+                return misc[item]
+            else:
+                raise AttributeError()
 
     def is_root(self):
         return self.idx == 0
@@ -55,7 +75,7 @@ class ConlluToken:
         return self.parse.get_tok(idx)
 
     def get_head(self):
-        return None if self.head is None else self.get_node(self.head)
+        return None if (self.head is None or self.head<0) else self.get_node(self.head)
 
 class ConlluParse:
     ROOT_SYM = "<R>"
@@ -64,12 +84,16 @@ class ConlluParse:
     IGNORE_F = lambda x: x.startswith("#")
 
     def __init__(self):
+        # headlines
+        self.headlines = []
         # ordinary tokens
         self.tokens = []        # [0] is root token
         # enhance tokens: {int/tuple[id,n]: *}
         self.enhance_tokens = {}
         # crossed?
         self._crossed = None
+        # other properties
+        self.misc = {}
 
     @staticmethod
     def calc_crossed(heads):
@@ -104,6 +128,10 @@ class ConlluParse:
     def __repr__(self):
         return "\n".join([str(z) for z in self.tokens])
 
+    # add comment
+    def add_headline(self, s):
+        self.headlines.append(s)
+
     # sequentially add one
     def add_token(self, k, t: ConlluToken, keep_seq=True):
         if isinstance(k, int):
@@ -135,6 +163,14 @@ class ConlluParse:
             head_tok.childs.append(cur_idx)
             head_tok.childs_labels.append(cur_label)
             cur_tok.ddist = cur_ddist
+        # calculate root distance
+        # =====
+        def _calc_rdist(tok, d):
+            tok.rdist = d
+            for ii in tok.childs:
+                _calc_rdist(self.tokens[ii], d+1)
+        # =====
+        _calc_rdist(self.tokens[0], 0)
 
     # get real tokens (exclude root)
     def get_tokens(self):
@@ -201,18 +237,23 @@ class ConlluReader:
             return hs, ls
 
     def read_one(self, fd):
-        lines = FileHelper.read_multiline(fd, ConlluParse.SKIP_F, ConlluParse.IGNORE_F)
+        # lines = FileHelper.read_multiline(fd, ConlluParse.SKIP_F, ConlluParse.IGNORE_F)
+        lines = FileHelper.read_multiline(fd, ConlluParse.SKIP_F)
         if lines is None:
             return None
         #
         RR = ConlluParse.ROOT_SYM
         parse = ConlluParse()
-        root_token = ConlluToken(parse, 0, RR, RR, RR, -1, None, None, None)
+        root_token = ConlluToken(parse, 0, RR, RR, RR, -1, None, None, None, None)
         parse.add_token(0, root_token)
         #
         prev_idx = 0
         for one_line in lines:
-            fileds = one_line.strip().split('\t')
+            if one_line.startswith("#"):
+                # add headlines
+                parse.add_headline(one_line[1:].strip())
+                continue
+            fileds = one_line.strip("\n").split('\t')
             zcheck(len(fileds)==ConlluParse.NUM_FIELDS, "Conllu Error: Unmatched num of fields.")
             # id
             id_str = fileds[0]
@@ -228,10 +269,10 @@ class ConlluReader:
             else:
                 zcheck(one_idx[0] == prev_idx, "Conllu Error: wrong ELLI line-idx")
             # add basic ones
-            word, upos, xpos, head, label = fileds[1], fileds[3], fileds[4], fileds[6], fileds[7]
+            word, upos, xpos, head, label, misc = fileds[1], fileds[3], fileds[4], fileds[6], fileds[7], fileds[9]
             head = int(head) if head!="_" else None
             ehn_hs, enh_ls = self.parse_enhance_dep(fileds[8])
-            one_token = ConlluToken(parse, one_idx, word, upos, xpos, head, label, ehn_hs, enh_ls)
+            one_token = ConlluToken(parse, one_idx, word, upos, xpos, head, label, ehn_hs, enh_ls, misc)
             parse.add_token(one_idx, one_token)
         parse.finish_tokens()
         return parse
@@ -244,8 +285,13 @@ class ConlluReader:
             yield parse
 
 # writer
-def write_conllu(fd, word, pos, heads, labels):
+def write_conllu(fd, word, pos, heads, labels, miscs=None, headlines=None):
     length = len(word)
+    if miscs is None:
+        miscs = ["_"] * length
+    if headlines is not None:
+        for line in headlines:
+            fd.write(f"# {line}\n")
     for idx in range(length):
         fields = ["_"] * 10
         fields[0] = str(idx+1)
@@ -253,6 +299,8 @@ def write_conllu(fd, word, pos, heads, labels):
         fields[3] = pos[idx]
         fields[6] = str(heads[idx])
         fields[7] = labels[idx]
+        if len(miscs[idx])>0:
+            fields[9] = miscs[idx]
         s = "\t".join(fields) + "\n"
         fd.write(s)
     fd.write("\n")

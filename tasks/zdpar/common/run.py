@@ -14,14 +14,15 @@ from .vocab import ParserVocabPackage
 
 # for indexing instances
 class IndexerStreamer(FAdapterStreamer):
-    def __init__(self, in_stream, vpack: ParserVocabPackage):
-        super().__init__(in_stream, self._go_index, True)
+    def __init__(self, in_stream, vpack: ParserVocabPackage, inst_preparer):
+        super().__init__(in_stream, self._go_index, False)
         #
         self.word_normer = vpack.word_normer
         self.w_vocab = vpack.get_voc("word")
         self.c_vocab = vpack.get_voc("char")
         self.p_vocab = vpack.get_voc("pos")
         self.l_vocab = vpack.get_voc("label")
+        self.inst_preparer = inst_preparer
 
     def _go_index(self, inst: ParseInstance):
         # word
@@ -36,12 +37,16 @@ class IndexerStreamer(FAdapterStreamer):
             inst.poses.build_idxes(self.p_vocab)
         if inst.labels.has_vals():
             inst.labels.build_idxes(self.l_vocab)
+        if self.inst_preparer is not None:
+            inst = self.inst_preparer(inst)
+        # in fact, inplaced if not wrapping model specific preparer
+        return inst
 
 #
-def index_stream(in_stream, vpack, cached):
-    i_stream = IndexerStreamer(in_stream, vpack)
+def index_stream(in_stream, vpack, cached, cache_shuffle, inst_preparer):
+    i_stream = IndexerStreamer(in_stream, vpack, inst_preparer)
     if cached:
-        return InstCacher(i_stream)
+        return InstCacher(i_stream, shuffle=cache_shuffle)
     else:
         return i_stream
 
@@ -65,7 +70,7 @@ class ParserResultMannager(ResultManager):
         #
         self.vpack = vpack
         self.outf = outf
-        self.goldf = goldf
+        self.goldf = goldf  # todo(note): goldf is only for reporting which file to compare?
         self.out_format = out_format
 
     def add(self, ones: List[ParseInstance]):
@@ -82,16 +87,22 @@ class ParserResultMannager(ResultManager):
                 data_writer.write(self.insts)
         #
         evaler = ParserEvaler()
-        eval_arg_names = ["poses", "heads", "labels", "pred_heads", "pred_labels"]
+        # evaler2 = ParserEvaler(ignore_punct=True, punct_set={"PUNCT", "SYM"})
+        eval_arg_names = ["poses", "heads", "labels", "pred_poses", "pred_heads", "pred_labels"]
         for one_inst in self.insts:
             # todo(warn): exclude the ROOT symbol; the model should assign pred_*
             real_values = one_inst.get_real_values_select(eval_arg_names)
             evaler.eval_one(*real_values)
+            # evaler2.eval_one(*real_values)
         report_str, res = evaler.summary()
+        # _, res2 = evaler2.summary()
         #
         zlog("Results of %s vs. %s" % (self.outf, self.goldf), func="result")
         zlog(report_str, func="result")
+        res["gold"] = self.goldf            # record which file
+        # res2["gold"] = self.goldf            # record which file
         zlog("zzzzztest: testing result is " + str(res))
+        # zlog("zzzzztest2: testing result is " + str(res2))
         zlog("zzzzzpar: %s" % res["res"], func="result")
         return res
 
@@ -122,7 +133,17 @@ class ParsingDevResult(RecordResult):
         rr = {}
         for idx, vv in enumerate(result_ds):
             rr["zres"+str(idx)] = vv                        # record all the results for printing
-        super().__init__(rr, result_ds[0]["res"])           # but only use the first one as DEV-res
+        # res = 0. if (len(result_ds)==0) else result_ds[0]["res"]        # but only use the first one as DEV-res
+        # todo(note): use the first dev result, and use UAS if res<=0.
+        if len(result_ds) == 0:
+            res = 0.
+        else:
+            # todo(note): the situation of totally unlabeled parsing
+            if result_ds[0]["res"] <= 0.:
+                res = result_ds[0]["tok_uas"]
+            else:
+                res = result_ds[0]["res"]
+        super().__init__(rr, res)
 
 # training runner
 class ParserTrainingRunner(TrainingRunner):
@@ -139,23 +160,23 @@ class ParserTrainingRunner(TrainingRunner):
             self.dev_outfs = [dev_outfs] * len(dev_goldfs)
 
     # to be implemented
-    def _run_fb(self, annotated_insts):
-        res = self.model.fb_on_batch(annotated_insts)
+    def _run_fb(self, annotated_insts, loss_factor: float):
+        res = self.model.fb_on_batch(annotated_insts, loss_factor=loss_factor)
         return res
 
     def _run_train_report(self):
         x = self.train_recorder.summary()
         y = GLOBAL_RECORDER.summary()
         # todo(warn): get loss/tok
-        x["loss_tok"] = x["loss_sum"]/x["tok"]
+        x["loss_tok"] = x.get("loss_sum", 0.)/x["tok"]
         if len(y) > 0:
             x.update(y)
-        zlog(x, "report")
+        # zlog(x, "report")
+        Helper.printd(x, " || ")
         return RecordResult(x)
 
-    def _run_update(self, lrate: float):
-        # already done in fb
-        self.model.update(lrate)
+    def _run_update(self, lrate: float, grad_factor: float):
+        self.model.update(lrate, grad_factor)
 
     def _run_validate(self, dev_streams):
         if not isinstance(dev_streams, Iterable):
