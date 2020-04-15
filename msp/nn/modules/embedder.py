@@ -3,7 +3,7 @@
 import numpy as np
 from typing import Tuple, Iterable
 
-from msp.utils import Conf, zcheck
+from msp.utils import Conf, zcheck, zwarn
 from msp.data import VocabPackage
 from msp.nn import BK
 from msp.nn.layers import BasicNode, Embedding, CnnLayer, PosiEmbedding, Affine, LayerNorm, Sequential, \
@@ -97,7 +97,9 @@ class MyEmbedder(BasicNode):
             self.aux_fold_lambdas.append(self.add_param("AL", (), [1./one_aux_fold for _ in range(one_aux_fold)]))  # [#fold]
         # =====
         # another projection layer? & set final dim
-        zcheck(len(repr_sizes)>0, "No inputs?")
+        if len(repr_sizes)<=0:
+            zwarn("No inputs??")
+        # zcheck(len(repr_sizes)>0, "No inputs?")
         self.repr_sizes = repr_sizes
         self.has_proj = (econf.emb_proj_dim>0)
         if self.has_proj:

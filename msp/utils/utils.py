@@ -237,12 +237,16 @@ class Helper(object):
         return len(idxes) == length and all(i == v for i, v in enumerate(idxes))
 
 class ZObject(object):
-    def __init__(self, m=None):
-        if m is not None:
-            self.update(m)
+    def __init__(self, _m=None, **kwargs):
+        if _m is not None:
+            self.update(_m)
+        self.update(kwargs)
 
     def update(self, m):
         if isinstance(m, ZObject):
             m = m.__dict__
         for k, v in m.items():
             setattr(self, k, v)
+
+    def __repr__(self):
+        return str(self.__dict__)

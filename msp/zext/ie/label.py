@@ -115,7 +115,9 @@ class HLabelVocab:
                     self.layered_v[cur_layer_i], self.layered_k[cur_layer_i], \
                     self.layered_prei[cur_layer_i], self.layered_hlidx[cur_layer_i]
                 # also put empty classes here
-                for cur_layer_types in [cur_types[:cur_layer_i]+(None,), cur_types[:cur_layer_i+1]]:
+                for valid_until_idx in range(cur_layer_i+1):
+                    cur_layer_types = cur_types[:valid_until_idx+1] + (None, ) * (cur_layer_i-valid_until_idx)
+                # for cur_layer_types in [cur_types[:cur_layer_i]+(None,), cur_types[:cur_layer_i+1]]:
                     if cur_layer_types not in cur_layered_v:
                         new_idx = len(cur_layered_k)
                         cur_layered_v[cur_layer_types] = new_idx
@@ -240,9 +242,10 @@ class HLabelVocab:
     # =====
     # query
     def val2idx(self, item: str) -> HLabelIdx:
-        if item is None:
-            item = ""
-        return self.v[item]
+        ret = self.v.get(item)
+        if ret is None:
+            ret = self.nil_idx  # unk as NIL  # todo(+N): in some mode, NIL might be ignored!!
+        return ret
 
     def idx2val(self, idx: HLabelIdx) -> str:
         return str(idx)
@@ -251,7 +254,7 @@ class HLabelVocab:
         return self.layered_hlidx[eff_max_layer-1][idx]
 
     def val2count(self, item: str) -> int:
-        return self.orig_counts[item]
+        return self.orig_counts.get(item, 0)
 
     # transform single unit into lexicon
     @staticmethod

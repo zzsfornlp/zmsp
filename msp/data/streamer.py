@@ -116,14 +116,18 @@ class FileOrFdStreamer(Streamer):
     def __init__(self, file_or_fd):
         super().__init__()
         self.file = file_or_fd
-        self.fd = None
+        self.input_is_fd = not isinstance(file_or_fd, str)
+        if self.input_is_fd:
+            self.fd = file_or_fd
+        else:
+            self.fd = None
 
     def __del__(self):
-        if self.fd is not None:
+        if self.fd is not None and not self.input_is_fd:
             self.fd.close()
 
     def _restart(self):
-        if isinstance(self.file, str):
+        if not self.input_is_fd:
             if self.fd is not None:
                 self.fd.close()
             self.fd = zopen(self.file)
@@ -474,7 +478,8 @@ class BatchArranger(AdapterStreamer):
             while self.buffered_bsize_ < self.k:
                 one = self.base_streamer_.next()
                 if self.base_streamer_.is_eos(one):
-                    break
+                    # todo(+N): this actually does not ensure the end if base_streamer can re-produce things
+                    break  # should have check active, currently skip this, assuming base_streamer's resposibility
                 # dump instances (like short or long instances)
                 dump_instance = any(f_(one) for f_ in self.dump_detectors)
                 if dump_instance:

@@ -5,7 +5,7 @@ import numpy as np
 from collections import Iterable
 from ..backends import BK
 from . import Affine, Embedding, get_mlp, BasicNode, ActivationHelper, Dropout, NoDropRop, NoFixRop
-from msp.utils import zcheck, zfatal, zwarn, zlog, Random, Constants
+from msp.utils import zcheck, zfatal, zwarn, zlog, Random, Constants, Conf
 
 #
 # biaffine (inputs are already paired)
@@ -61,6 +61,7 @@ class BiAffine(BasicNode):
         return (self.n_out, )
 
 #
+# todo(note): this module is deprecated by the following PairScorer
 # the final layer scorer (no dropout if used as the final scoring layer)
 class BiAffineScorer(BasicNode):
     def __init__(self, pc, in_size0, in_size1, out_size, ff_hid_size=-1, ff_hid_layer=0, use_bias=True, use_biaffine=True, biaffine_div: float=None, use_ff=True, use_ff2=False, no_final_drop=True, name=None, init_rop=None, mask_value=Constants.REAL_PRAC_MIN, biaffine_init_ortho=False):
@@ -226,3 +227,150 @@ class BiAffineScorer(BasicNode):
         if mask1 is not None:
             ret += self.mask_value*(1.-mask1).unsqueeze(-1)
         return self.drop_node(ret)
+
+# =====
+class PairScorerConf(Conf):
+    def __init__(self):
+        # general
+        self.use_bias = True
+        self.no_final_drop = True  # usually as final scorer
+        self.mask_value = Constants.REAL_PRAC_MIN
+        # what input to use
+        self.use_input0 = True
+        self.use_input1 = True
+        self.use_input_pair = False
+        # biaffine?
+        self.use_biaffine = True
+        self.biaffine_div = 1.  # <=0 means auto
+        self.biaffine_init_ortho = True
+        # ff1: separate for each
+        self.use_ff1 = True
+        self.ff1_hid_layer = 0
+        self.ff1_hid_size = 256
+        self.ff1_hid_act = "elu"
+        # ff2: concat the inputs
+        self.use_ff2 = False
+        self.ff2_hid_layer = 1  # usually at least 1 hid to combine features
+        self.ff2_hid_size = 256
+        self.ff2_hid_act = "elu"
+
+#
+class PairScorer(BasicNode):
+    def __init__(self, pc, in_size0, in_size1, out_size, conf: PairScorerConf, init_rop=None, in_size_pair=0):
+        super().__init__(pc, None, init_rop)
+        #
+        self.conf = conf
+        self.in_size0 = in_size0
+        self.in_size1 = in_size1
+        self.in_size_pair = in_size_pair
+        self.out_size = out_size
+        self.biaffine_div = conf.biaffine_div
+        if self.biaffine_div <= 0.:
+            self.biaffine_div = (in_size0 * in_size1) ** 0.25  # sqrt(sqrt(in1*in2))
+            zlog(f"Adopt biaffine_div of {self.biaffine_div} for the current PairScorer")
+        self.use_input_flags = [conf.use_input0, conf.use_input1, conf.use_input_pair]
+        self.input_sizes = [in_size0, in_size1, in_size_pair]
+        self.input_sizes_valid = [s for s,f in zip(self.input_sizes, self.use_input_flags) if f]
+        assert all(z>0 for z in self.input_sizes_valid), "Bad input_size <=0!!"
+        # =====
+        # add components
+        assert conf.use_ff1 or conf.use_ff2 or conf.use_biaffine, "No real calculations here!"
+        # bias
+        if conf.use_bias:
+            self.B = self.add_param(name="B", shape=(out_size, ))
+        # ff1
+        if conf.use_ff1:
+            self.FF1s = []
+            for one_size, one_flag in zip(self.input_sizes, self.use_input_flags):
+                if one_flag:
+                    one_node = self.add_sub_node("F1", get_mlp(pc, one_size, out_size, conf.ff1_hid_size,
+                                                               n_hidden_layer=conf.ff1_hid_layer, hidden_act=conf.ff1_hid_act,
+                                                               final_bias=False, final_init_rop=NoDropRop()))
+                else:
+                    one_node = lambda x: 0.
+                self.FF1s.append(one_node)
+        # ff2
+        if conf.use_ff2:
+            self.FF2 = self.add_sub_node("F2", get_mlp(pc, self.input_sizes_valid, out_size, conf.ff2_hid_size,
+                                                       n_hidden_layer=conf.ff2_hid_layer, hidden_act=conf.ff2_hid_act,
+                                                       final_bias=False, final_init_rop=NoDropRop(), hidden_which_affine=3))
+        # biaffine
+        if conf.use_biaffine:
+            # this is different than BK.bilinear or layers.BiAffine
+            self.W = self.add_param(name="W", shape=(in_size0, in_size1*out_size),
+                                    init=("ortho" if conf.biaffine_init_ortho else "default"))
+        # todo(note): maybe meaningless to use fix-drop
+        if conf.no_final_drop:
+            self.drop_node = lambda x: x
+        else:
+            self.drop_node = self.add_sub_node("drop", Dropout(pc, (self.out_size,), init_rop=NoFixRop()))
+
+    # plain call
+    # io: [*, in_size0], [*, in_size1], [*, in_size_pair] -> [*, out_size]; masks: [*]
+    def plain_score(self, input0, input1, inputp=None, mask0=None, mask1=None, maskp=None):
+        conf = self.conf
+        ret = 0.
+        cur_input_list = [input0, input1, inputp]
+        if conf.use_ff1:
+            for one_node, one_input in zip(self.FF1s, cur_input_list):
+                ret = ret + one_node(one_input)
+        if conf.use_ff2:
+            FF2_inputs = [one_input for one_flag, one_input in zip(self.use_input_flags, cur_input_list) if one_flag]
+            ret = ret + self.FF2(FF2_inputs)
+        if conf.use_biaffine:
+            # [*, in0] * [in0, in1*out] -> [*, in1*out] -> [*, in1, out]
+            expr0 = BK.matmul(input0, self.W).view(BK.get_shape(input0)[:-1]+[self.in_size1, self.out_size])
+            # [*, 1, in1] * [*, in1, out] -> [*, 1, out] -> [*, out]
+            expr1 = BK.matmul(input1.unsqueeze(-2), expr0).squeeze(-2)
+            ret = ret + expr1 / self.biaffine_div
+        if conf.use_bias:
+            ret += self.B
+        # mask
+        if mask0 is not None:
+            ret += conf.mask_value*(1.-mask0).unsqueeze(-1)
+        if mask1 is not None:
+            ret += conf.mask_value*(1.-mask1).unsqueeze(-1)
+        if maskp is not None:
+            ret += conf.mask_value*(1.-maskp).unsqueeze(-1)
+        return self.drop_node(ret)
+
+    # special call
+    # io: [*, len0, in_size0], [*, len1, in_size1] -> [*, len0, len1, out_size], masks: [*, len0], [*, len1], [*, len0, len1]
+    def paired_score(self, input0, input1, inputp=None, mask0=None, mask1=None, maskp=None):
+        conf = self.conf
+        # [*, len0, 1, in_size0]
+        expand0 = input0.unsqueeze(-2)
+        # [*, ?, len1, in_size1]
+        expand1 = input1.unsqueeze(-3)
+        ret = 0.
+        cur_input_list = [expand0, expand1, inputp]
+        if conf.use_ff1:
+            for one_node, one_input in zip(self.FF1s, cur_input_list):
+                ret = ret + one_node(one_input)
+        if conf.use_ff2:
+            FF2_inputs = [one_input for one_flag, one_input in zip(self.use_input_flags, cur_input_list) if one_flag]
+            ret = ret + self.FF2(FF2_inputs)
+        if conf.use_biaffine:
+            # [*, len0, in0] * [in0, in1*out] -> [*, len0, in1*out] -> [*, len0, in1, out]
+            expr0 = BK.matmul(input0, self.W).view(BK.get_shape(input0)[:-1]+[self.in_size1, self.out_size])
+            # [*, 1, len1, in1] * [*, len0, in1, out]
+            expr1 = BK.matmul(expand1, expr0)
+            # [*, len0, len1, out]
+            ret = ret + expr1 / self.biaffine_div
+        if conf.use_bias:
+            ret += self.B
+        # mask
+        if mask0 is not None:
+            ret += conf.mask_value*(1.-mask0).unsqueeze(-1).unsqueeze(-1)
+        if mask1 is not None:
+            ret += conf.mask_value*(1.-mask1).unsqueeze(-2).unsqueeze(-1)
+        if maskp is not None:
+            ret += conf.mask_value*(1.-maskp).unsqueeze(-1)
+        return self.drop_node(ret)
+
+    # default is paired special version
+    def __call__(self, *args, **kwargs):
+        raise RuntimeError("Use specific routines for PairwiseScorer!!")
+
+    def get_output_dims(self, *input_dims):
+        return (self.out_size, )

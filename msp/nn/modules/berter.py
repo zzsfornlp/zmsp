@@ -38,7 +38,7 @@ class BerterConf(Conf):
         self.bert_zero_pademb = False  # whether make padding embedding zero vector
 
 #
-SubwordToks = namedtuple('SubwordToks', ['subword_toks', 'subword_ids', 'subword_is_start'])
+SubwordToks = namedtuple('SubwordToks', ['subword_toks', 'subword_ids', 'subword_is_start', 'subword_typeid'])
 
 #
 class Berter(object):
@@ -89,38 +89,7 @@ class Berter(object):
     # todo(note): here does not add CLS or SEP, since later we can concatenate things!
     def subword_tokenize(self, tokens: List[str], no_special_root: bool, mask_idx=-1, mask_mode="all", mask_repl=""):
         assert no_special_root
-        subword_toks = []  # all sub-tokens, no CLS or SEP
-        subword_is_start = []  # whether is the start of orig-token positions
-        subword_ids = []
-        for i, t in enumerate(tokens):
-            cur_toks = self.tokenizer.tokenize(t)
-            # in some cases, there can be empty strings -> put the original word
-            if len(cur_toks) == 0:
-                cur_toks = [t]
-            # =====
-            # mask mode
-            if i == mask_idx:
-                mask_tok = mask_repl if mask_repl else self.tokenizer.mask_token
-                if mask_mode == "all":
-                    cur_toks = [mask_tok] * (len(cur_toks))
-                elif mask_mode == "first":
-                    cur_toks[0] = mask_tok
-                elif mask_mode == "one":
-                    cur_toks = [mask_tok]
-                elif mask_mode == "pass":
-                    continue  # todo(note): special mode, ignore current tok, but need later post-processing
-                else:
-                    raise NotImplementedError("UNK mask mode")
-            # =====
-            # todo(warn): use the first BPE piece's vector for the whole word
-            cur_is_start = [0]*(len(cur_toks))
-            cur_is_start[0] = 1
-            subword_is_start.extend(cur_is_start)
-            subword_toks.extend(cur_toks)
-            subword_ids.extend(self.tokenizer.convert_tokens_to_ids(cur_toks))
-        assert len(subword_toks) == len(subword_is_start)
-        assert len(subword_toks) == len(subword_ids)
-        return SubwordToks(subword_toks, subword_ids, subword_is_start)
+        return Berter._subword_tokenize(self.tokenizer, tokens, mask_idx, mask_mode, mask_repl)
 
     # forward with a collection of sentences, input is List[(subwords, starts)]
     # todo(note): currently all change to np.ndarray and return,
@@ -441,3 +410,43 @@ class Berter(object):
         forw2_max_scores_arr, forw2_max_idxes_arr = BK.get_value(forw2_max_scores), BK.get_value(forw2_max_idxes)  # [OLEN]
         forw2_max_strs = [self.tok_word_list[z] for z in forw2_max_idxes_arr]
         return forw1_scores_arr, forw2_max_scores_arr, forw2_max_strs, orig_subword_lists
+
+    # =====
+    # usable helper functions
+    @staticmethod
+    def _subword_tokenize(bert_tokenizer, tokens: List[str], mask_idx=-1, mask_mode="all", mask_repl="", typeids: List[int]=None):
+        subword_toks = []  # all sub-tokens, no CLS or SEP
+        subword_is_start = []  # whether is the start of orig-token positions
+        subword_ids = []
+        subword_typeids = None if typeids is None else []
+        for i, t in enumerate(tokens):
+            cur_toks = bert_tokenizer.tokenize(t)
+            # in some cases, there can be empty strings -> put the original word
+            if len(cur_toks) == 0:
+                cur_toks = [t]
+            # =====
+            # mask mode
+            if i == mask_idx:
+                mask_tok = mask_repl if mask_repl else bert_tokenizer.mask_token
+                if mask_mode == "all":
+                    cur_toks = [mask_tok] * (len(cur_toks))
+                elif mask_mode == "first":
+                    cur_toks[0] = mask_tok
+                elif mask_mode == "one":
+                    cur_toks = [mask_tok]
+                elif mask_mode == "pass":
+                    continue  # todo(note): special mode, ignore current tok, but need later post-processing
+                else:
+                    raise NotImplementedError("UNK mask mode")
+            # =====
+            # todo(warn): use the first BPE piece's vector for the whole word
+            cur_is_start = [0]*(len(cur_toks))
+            cur_is_start[0] = 1
+            subword_is_start.extend(cur_is_start)
+            subword_toks.extend(cur_toks)
+            subword_ids.extend(bert_tokenizer.convert_tokens_to_ids(cur_toks))
+            if typeids is not None:
+                subword_typeids.extend([typeids[i] for _ in cur_toks])
+        assert len(subword_toks) == len(subword_is_start)
+        assert len(subword_toks) == len(subword_ids)
+        return SubwordToks(subword_toks, subword_ids, subword_is_start, subword_typeids)

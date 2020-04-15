@@ -2,6 +2,7 @@
 
 from ..backends import BK
 from ..backends.common import get_unique_name
+import numpy as np
 
 from msp.utils import extract_stack
 
@@ -40,7 +41,7 @@ def NoFixRop(): return RefreshOptions(fix_drop=False, fix_set=("fix_drop", ))
 
 # helpers
 class ActivationHelper(object):
-    ACTIVATIONS = {"tanh": BK.tanh, "softmax": BK.softmax, "relu": BK.relu, "elu": BK.elu,
+    ACTIVATIONS = {"tanh": BK.tanh, "softmax": BK.softmax, "relu": BK.relu, "elu": BK.elu, "gelu": BK.gelu,
                    "sigmoid": BK.sigmoid, "linear": lambda x:x}
     # reduction for seq after conv
     POOLINGS = {"max": lambda x: BK.max(x, -2)[0], "avg": lambda x: BK.avg(x, -2)}
@@ -109,11 +110,12 @@ class BasicNode(object):
         return input_dims
 
     # create param from PC
-    def add_param(self, name, shape, init=None, lookup=False, check_stack=True):
+    def add_param(self, name, shape, init=None, lookup=False, check_stack=True, out_p4i=1, scale=1.):
         if init is None:
-            w = BK.get_params_init(shape, "default", lookup)
-        elif isinstance(init, str):
-            w = BK.get_params_init(shape, init, lookup)
+            init = "default"
+        # -----
+        if isinstance(init, str):
+            w = BK.get_params_init(shape, init, lookup, out_p4i, scale)
         else:
             w = init
         name = self.get_unique_name(name)
@@ -142,9 +144,17 @@ class BasicNode(object):
                 ret.extend(node.get_parameters(recursively))
         return ret
 
+    # count number of parameters
+    def count_allsize_parameters(self, recursively=True):
+        count = 0
+        list_params = self.get_parameters(recursively)
+        for p in list_params:
+            count += np.prod(BK.get_shape(p))
+        return int(count)
+
 # commonly used Nodes
 class Dropout(BasicNode):
-    def __init__(self, pc, shape, which_drop="hdrop", name=None, init_rop=None):
+    def __init__(self, pc, shape, which_drop="hdrop", name=None, init_rop=None, fix_rate=None):
         super().__init__(pc, name, init_rop)
         self.f_ = None
         self.shape = shape
@@ -155,12 +165,18 @@ class Dropout(BasicNode):
         if which_drop == "gdrop":
             self.rop.fix_drop = True
             self.rop.add_to_fix_set("fix_drop")
+            assert fix_rate is None
+        #
+        self.fix_rate = fix_rate
 
     def refresh(self, rop=None):
         super().refresh(rop)
         #
         r = self.rop
-        drop = self.drop_getter_(r)
+        if self.fix_rate is not None:
+            drop = self.fix_rate
+        else:
+            drop = self.drop_getter_(r)
         # todo(+3): another overall switch, not quite elegant!
         if not r.training:
             self.f_ = lambda x: x

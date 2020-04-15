@@ -1,7 +1,7 @@
 #
 
 from ..backends import BK
-from .basic import BasicNode, ActivationHelper
+from .basic import BasicNode, ActivationHelper, NoDropRop, Dropout
 from .ff import Affine, LayerNorm
 
 from msp.utils import zcheck
@@ -165,7 +165,7 @@ class AddActWrapper(NodeWrapper):
 # Highway Wrapper: also with the first arg
 class HighWayWrapper(NodeWrapper):
     def __init__(self, node, node_last_dims):
-        super().__init__(node.pc, node_last_dims)
+        super().__init__(node, node_last_dims)
         self.size = self.input_ns[0]
         zcheck(self.size==self.output_ns[0], "AddNormWrapper meets unequal dims.")
         self.gate = self.add_sub_node("g", Affine(self.pc, self.size, self.size, act="linear"))
@@ -189,4 +189,23 @@ def get_mlp(pc, n_ins, n_out, n_hidden, n_hidden_layer=1, hidden_act="tanh", fin
                             init_rop=hidden_init_rop, which_affine=hidden_which_affine)
         nodes.append(hidden_one)
     nodes.append(Affine(pc, layer_dims[-1], n_out, act=final_act, bias=final_bias, init_rop=final_init_rop))
+    return Sequential(pc, nodes, name="mlp")
+
+# version 2
+def get_mlp2(pc, n_ins, n_out, n_hidden, n_hidden_layer, hidden_act="tanh", final_act="linear", hidden_bias=True, final_bias=True, hidden_dropout=0., final_dropout=0., hidden_which_affine=2):
+    layer_dims = [n_hidden]*n_hidden_layer + [n_out]
+    layer_drops = [hidden_dropout]*n_hidden_layer + [final_dropout]
+    layer_acts = [hidden_act]*n_hidden_layer + [final_act]
+    layer_biases = [hidden_bias]*n_hidden_layer + [final_bias]
+    # -----
+    nodes = []
+    cur_dim = n_ins
+    for idx in range(n_hidden_layer+1):
+        hidden_one = Affine(pc, cur_dim, layer_dims[idx], act=layer_acts[idx], bias=layer_biases[idx],
+                            init_rop=NoDropRop(), which_affine=hidden_which_affine)
+        nodes.append(hidden_one)
+        if layer_drops[idx] > 0.:
+            dropout_one = Dropout(pc, (layer_dims[idx], ), fix_rate=layer_drops[idx])
+            nodes.append(dropout_one)
+        cur_dim = layer_dims[idx]
     return Sequential(pc, nodes, name="mlp")

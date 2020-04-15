@@ -167,7 +167,8 @@ class LstmNode2(RnnNode):
 # here only one layer, to join by Seq
 # todo(warn): this layer accept special inputs, use RnnLayerBatchFirstWrapper for ordinary ones
 class RnnLayer(BasicNode):
-    def __init__(self, pc, n_input, n_hidden, n_layers=1, node_type="lstm", node_init_rop=None, init_rop=None, bidirection=False, name=None, no_output_dropout=True):
+    def __init__(self, pc, n_input, n_hidden, n_layers=1, node_type="lstm", node_init_rop=None, init_rop=None,
+                 bidirection=False, sep_bidirection=False, name=None, no_output_dropout=True):
         super().__init__(pc, name, init_rop)
         #
         def _get_node(name, n_input, n_hidden):
@@ -177,8 +178,9 @@ class RnnLayer(BasicNode):
         self.n_hidden = n_hidden
         self.n_layers = n_layers
         self.bidirection = bidirection
+        self.sep_bidirection = sep_bidirection  # separately model the two directions
         #
-        dim_hid = self.n_hidden * (2 if self.bidirection else 1)
+        dim_hid = self.n_hidden * (2 if (self.bidirection and not self.sep_bidirection) else 1)
         self.fnodes = [_get_node("f", n_input, n_hidden)] + [_get_node("f", dim_hid, n_hidden) for z in range(n_layers-1)]
         if bidirection:
             self.bnodes = [_get_node("b", n_input, n_hidden)] + [_get_node("b", dim_hid, n_hidden) for z in range(n_layers-1)]
@@ -189,12 +191,13 @@ class RnnLayer(BasicNode):
         # dropout for the output of each layer (also controlled by ``no_output_dropout''
         self.no_output_dropout = no_output_dropout
         if no_output_dropout:
-            self.drop_nodes = None
+            self.f_drop_nodes = self.b_drop_nodes = None
         else:
-            self.drop_nodes = [self.add_sub_node("drop", Dropout(pc, (self.output_dim,))) for _ in range(n_layers)]
+            self.f_drop_nodes = [self.add_sub_node("fdrop", Dropout(pc, (self.n_hidden,))) for _ in range(n_layers)]
+            self.b_drop_nodes = [self.add_sub_node("bdrop", Dropout(pc, (self.n_hidden,))) for _ in range(n_layers)]
 
     def __repr__(self):
-        return "# RnnLayer[fb=%s] (input=%s, hidden=%s)" % (self.bidirection, self.n_input, self.n_hidden)
+        return f"# RnnLayer[fb={self.bidirection}, sep={self.sep_bidirection}] (input={self.n_input}, hidden={self.n_hidden})"
 
     def get_output_dims(self, *input_dims):
         return (self.output_dim, )
@@ -202,7 +205,8 @@ class RnnLayer(BasicNode):
     # embeds: list(step) of {(n_emb, ), batch_size}, using padding for batches
     # masks: list(step) of {batch_size, } or None
     def __call__(self, embeds, masks=None):
-        outputs = [embeds]
+        f_outputs = [embeds]
+        b_outputs = [embeds]
         # todo(warn), how about disabling masks for speeding up (although might not be critical)?
         if masks is None:
             masks = [None for _ in embeds]
@@ -211,32 +215,40 @@ class RnnLayer(BasicNode):
         init_states = (init_hidden, init_hidden)            # todo(note): inner side of the RNN-units
         for layer_idx in range(self.n_layers):
             f_node = self.fnodes[layer_idx]
-            tmp_f = []      # forward
+            tmp_f = []  # forward
+            tmp_b = []  # backward
             tmp_f_prev = init_states
-            for e, m in zip(outputs[-1], masks):
+            for e, m in zip(f_outputs[-1], masks):
                 one_output = f_node(e, tmp_f_prev, m)
                 tmp_f.append(one_output[0])                 # todo(note): inner side of the RNN-units
                 tmp_f_prev = one_output
             if self.bidirection:
                 b_node = self.bnodes[layer_idx]
-                tmp_b = []      # backward
                 tmp_b_prev = init_states
-                for e, m in zip(reversed(outputs[-1]), reversed(masks)):
+                for e, m in zip(reversed(b_outputs[-1]), reversed(masks)):
                     one_output = b_node(e, tmp_b_prev, m)
                     tmp_b.append(one_output[0])             # todo(note): inner side of the RNN-units
                     tmp_b_prev = one_output
-                # concat
-                ctx = [BK.concat([f,b]) for f,b in zip(tmp_f, reversed(tmp_b))]
-            else:
-                ctx = tmp_f
+                tmp_b.reverse()  # todo(note): always store in l2r order
             # output/middle dropouts
-            if self.no_output_dropout:
-                outputs.append(ctx)
+            if not self.no_output_dropout:
+                f_drop_node = self.f_drop_nodes[layer_idx]
+                tmp_f = [f_drop_node(z) for z in tmp_f]
+                b_drop_node = self.b_drop_nodes[layer_idx]
+                tmp_b = [b_drop_node(z) for z in tmp_b]
+            # concat if not sep
+            if not self.sep_bidirection:
+                ctx = [BK.concat([f, b]) for f, b in zip(tmp_f, tmp_b)]
+                f_outputs.append(ctx)
+                b_outputs.append(ctx)
             else:
-                drop_node = self.drop_nodes[layer_idx]
-                ctx_dropped = [drop_node(c) for c in ctx]
-                outputs.append(ctx_dropped)
-        final_outputs = outputs[-1]
+                f_outputs.append(tmp_f)
+                b_outputs.append(tmp_b)
+        # -----
+        if self.bidirection and self.sep_bidirection:
+            final_outputs = [BK.concat([f, b]) for f, b in zip(f_outputs[-1], b_outputs[-1])]
+        else:
+            final_outputs = f_outputs[-1]
         return final_outputs
 
 #

@@ -75,10 +75,12 @@ class Logger(object):
         if level >= self.level:
             func, head = Logger._get_ch(func)
             if self.func_filters[func]:
+                if head:
+                    head += f"[L{level}] "
                 if timed:
-                    ss = f"{head}[{'-'.join(time.ctime().split()[-4:])}, L{level}] {s}"
+                    ss = f"{head}[{'-'.join(time.ctime().split()[-4:])}] {s}"
                 else:
-                    ss = f"{head}[L{level}] {s}"
+                    ss = f"{head}{s}"
                 for f in self.fds:
                     if self.file_filters[f]:
                         print(ss, end=end, file=self.fds[f], flush=flush)

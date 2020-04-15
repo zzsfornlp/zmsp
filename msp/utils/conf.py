@@ -1,6 +1,6 @@
 #
 
-from collections import Iterable, OrderedDict
+from collections import Iterable, OrderedDict, defaultdict
 import json
 
 from .log import printing, zopen
@@ -61,7 +61,7 @@ class Conf(object):
     def collect_all_names(self):
         def _add_rec(v, cur_conf, path):
             for n in cur_conf.__dict__:
-                if cur_conf.good_name(n):
+                if cur_conf.good_name(n) and not n.startswith("_"):  # todo(note): here does not include "_"-starters
                     path.append(n)
                     one = cur_conf.__dict__[n]
                     if isinstance(one, Conf):
@@ -109,7 +109,10 @@ class Conf(object):
         if isinstance(old_v, list):
             try:
                 v_toassign = json.loads(v)
-            except json.JSONDecodeError:
+                if not isinstance(v_toassign, list):
+                    raise ValueError("Not a list!")
+            # except json.JSONDecodeError:
+            except ValueError:
                 v_toassign = v.split(Conf.LIST_SEP) if len(v)>0 else []
             # todo(warn): for default empty ones, also special treating for bool
             ele_type = type(old_v[0]) if len(old_v) > 0 else str
@@ -123,6 +126,7 @@ class Conf(object):
     def update_from_dict(self, d):
         name_maps = self.collect_all_names()
         good_ones, bad_ones = [], []
+        hit_full_name = defaultdict(list)
         for n, v in d.items():
             name_list = name_maps.get(n, None)
             if name_list is None:
@@ -132,6 +136,10 @@ class Conf(object):
                 bad_ones.append(f"Bad(ambiguous or non-exist) config {n}={v}, -> {name_list}")
                 continue
             full_name = name_list[0]
+            hit_full_name[full_name].append(n)
+            if len(hit_full_name[full_name]) >= 2:
+                bad_ones.append(f"Repeated config with different short names: {full_name}: {hit_full_name[full_name]}")
+                continue
             _, old_v, new_v = self._do_update(full_name, v)
             good_ones.append(f"Update config '{n}={v}': {full_name} = {old_v} -> {new_v}")
         return good_ones, bad_ones
@@ -184,7 +192,7 @@ class Conf(object):
             fields = a.split(sep, 1)        # only split the first one
             assert len(fields) == 2, "strange config updating value"
             if fields[0] in argv:
-                zwarn("Overwrite config %s." % a)
+                zwarn("Overwrite config %s." % a)  # TODO(+N): a tricky bug when using different names for the same conf!!
             argv[fields[0]] = fields[1]
         return argv
 

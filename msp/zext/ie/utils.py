@@ -16,7 +16,9 @@ def split_camel(ss):
             prev_upper = False
             if c == ".":
                 c = '-'
-            assert c=="-", f"Illegal char {c} for label"
+            elif c == "/":
+                pass
+            assert c=="-" or c=="/", f"Illegal char {c} for label"
         all_cs.append(str.lower(c))  # here, first lower all
     ret = [z for z in "".join(all_cs).split("-") if len(z)>0]
     return ret

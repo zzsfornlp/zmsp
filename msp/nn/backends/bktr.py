@@ -11,8 +11,10 @@ from typing import List
 from .common import COMMON_CONFIG, get_unique_name, _my_get_params_init
 
 Expr = torch.Tensor
+Module = torch.nn.Module
 CPU_DEVICE = torch.device("cpu")
 DEFAULT_DEVICE = CPU_DEVICE
+T_INIT = torch.nn.init
 
 # types
 float32 = torch.float32
@@ -52,19 +54,28 @@ def is_expr(v):
 is_tensor = is_expr
 
 # parameter init from BK (similar to common.get_params_init)
-# return a tensor here
-def get_params_init(shape, init, lookup):
-    if COMMON_CONFIG.use_my_init:
-        return _my_get_params_init(shape, init, lookup)
+# return a tensor here; (out_p4i is the real shape[0] for more reasonable init for some cases)
+def get_params_init(shape, init, lookup, out_p4i, scale):
+    # if COMMON_CONFIG.use_my_init:
+    #     return _my_get_params_init(shape, init, lookup)
+    assert not COMMON_CONFIG.use_my_init, "now use ones from pytorch for param init"
     x = torch.empty(*shape, dtype=torch.float32, device=DEFAULT_DEVICE)
     if len(shape) == 1:
         nn.init.zeros_(x)
     else:
         if lookup:
-            scale = np.sqrt(3.0 / shape[-1])
-            nn.init.uniform_(x, -scale, scale)
+            _iscale = np.sqrt(3.0 / shape[-1])
+            nn.init.uniform_(x, -_iscale, _iscale)
+            # todo(+N): again back to previous init method
+            # nn.init.normal_(x)
+            x *= scale
         elif init == "default" or init == "glorot":
-            nn.init.xavier_uniform_(x)
+            out_size = shape[0]
+            assert out_size % out_p4i == 0, "Bad output shape pieces for init value!"
+            s0 = out_size//out_p4i
+            for i in range(out_p4i):
+                nn.init.xavier_uniform_(x[i*s0:(i+1)*s0])
+            x *= scale
         elif init == "ortho":
             # todo(note): assume squared matrices
             assert len(shape)==2 and (shape[0]%shape[1]==0 or shape[1]%shape[0]==0), "Invalid shape for ortho init"
@@ -154,10 +165,20 @@ class ParamCollection:
     def get_unique_name(self, name):
         return get_unique_name(self.name_dict, name)
 
+    # add a torch.nn.Module's parameters
+    def param_add_external(self, name, mod: nn.Module):
+        ret_pairs = []
+        for one_subname, one_param in mod.named_parameters():
+            one_subname = "_".join(one_subname.split("."))  # cannot include "."
+            self.model_.register_parameter(name+"/"+one_subname, one_param)
+            ret_pairs.append((one_subname, one_param))
+        return ret_pairs
+
     # register param
     def param_new(self, name, shape, init_weights, lookup=False):
         # almost all params are float
         p = Parameter(torch.as_tensor(init_weights, dtype=torch.float32, device=DEFAULT_DEVICE))
+        assert name not in self.model_._parameters  # no modules in this pc
         self.model_.register_parameter(name, p)
         return p
 
@@ -178,9 +199,10 @@ class ParamCollection:
     def optimizer_set(self, optim_type, lrf_sv, oconf, params: List = None, check_repeat=True, check_full=False):
         if params is None:
             params = self.model_.parameters()
-        optim = Optim(optim_type, lrf_sv, oconf, params)
-        cur_optid = len(self.optims_)
-        self.optims_.append(optim)
+        if len(params) > 0:
+            optim = Optim(optim_type, lrf_sv, oconf, params)
+            cur_optid = len(self.optims_)
+            self.optims_.append(optim)
         # track all params
         for p in params:
             paramid = id(p)
@@ -344,11 +366,14 @@ diagflat = torch.diagflat
 elu = F.elu
 exp = torch.exp
 expand = lambda x, *args: x.expand(*args)
+gelu = getattr(F, "gelu", None)  # todo(warn): on older versions, this does not exist
 log = torch.log
 logsigmoid = F.logsigmoid
 logsumexp = torch.logsumexp
 max = torch.max         # todo(warn): with dim, return tuple
 max_elem = torch.max    # todo(warn): max_elem(a, b)
+min = torch.min
+min_elem = torch.min
 masked_select = torch.masked_select
 matmul = torch.matmul
 pad = F.pad
@@ -536,8 +561,9 @@ else:
 def mask2idx(mask_t, padding_idx=0):
     mask_shape = get_shape(mask_t)  # [*, L]
     counts = mask_t.sum(-1).long()  # [*]
-    max_count = counts.max().item()  # int, the max expanding
-    padding_counts = max_count - counts  # [*]
+    max_count_t = counts.max(-1, keepdim=True)[0]
+    max_count = max_count_t.item()  # int, the max expanding
+    padding_counts = max_count_t - counts  # [*]
     max_padding_count = padding_counts.max().item()  # int, the max count of padding
     pad_t = (arange_idx(max_padding_count) < padding_counts.unsqueeze(-1)).float()  # [*, max_pad]
     concat_t = concat([mask_t, pad_t], -1)  # [*, L+max_pad]
@@ -548,3 +574,11 @@ def mask2idx(mask_t, padding_idx=0):
     valid_mask = (ret_idxes < slen).float()
     ret_idxes[ret_idxes >= slen] = padding_idx
     return ret_idxes, valid_mask
+
+# maxpool 1d at last dim
+def max_pool1d(input, kernel):
+    orig_shape = get_shape(input)
+    # make it 3d
+    tmp_res = F.max_pool1d(input.view([-1]+orig_shape[-2:]), kernel)
+    real_res = tmp_res.view(orig_shape[:-1] + [-1])
+    return real_res

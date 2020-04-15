@@ -5,16 +5,6 @@
 
 from typing import List, Iterable
 
-#
-class ZObject(object):
-    def __init__(self, m=None):
-        if m is not None:
-            self.update(m)
-
-    def update(self, m):
-        for k, v in m.items():
-            setattr(self, k, v)
-
 class ZRecNode:
     def __init__(self, parent: 'ZRecNode', path: List):
         self.path = tuple(path)

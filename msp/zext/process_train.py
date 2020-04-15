@@ -25,17 +25,19 @@ class RecordResult:
 
     # return the one float score, better eval get larger scores
     def __float__(self):
-        return self.score
+        return float(self.score)
 
     def __repr__(self):
         return "Result(%s): %s" % (str(self.score), str(self.results))
 
 # records stats of training-fb and dev, coupled with TrainingRunner
 class TrainingProgressRecorder(object):
-    def __init__(self, patience, anneal_restarts_cap):
+    def __init__(self, patience, anneal_restarts_cap, bad_start_eidx, bad_start_uidx):
         # hyper-parameters
         self.patience = patience
         self.anneal_restarts_cap = anneal_restarts_cap
+        self.bad_start_eidx = bad_start_eidx
+        self.bad_start_uidx = bad_start_uidx
         # idxes
         self.eidx = 0       # epochs
         self.iidx = 0       # insts
@@ -93,6 +95,9 @@ class TrainingProgressRecorder(object):
             self.best_dev_record = dev_result
             self.best_point = len(self.chp_names)-1
             if_best = True
+        elif self.eidx < self.bad_start_eidx or self.uidx < self.bad_start_uidx:
+            # not starting bad counter
+            pass
         else:
             cur_info = [sname, self.best_point, self.chp_names[self.best_point], str(self.best_dev_record)]
             self.bad_counter += 1
@@ -138,6 +143,10 @@ class RConf(Conf):
         self.min_updates = 0
         self.min_save_updates = 0
         self.max_updates = 10000000
+        self.save_freq = 10000000  # save every ?? check point
+        # bad counter start (start bad counter after these)
+        self.bad_start_eidx = 0
+        self.bad_start_uidx = 0
         # annealing
         self.anneal_times = 100
         self.patience = 3
@@ -175,7 +184,7 @@ class TrainingRunner(object):
     def __init__(self, rconf, model, batch_size_f=None):
         self.model = model
         #
-        self._tp = TrainingProgressRecorder(rconf.patience, rconf.anneal_times)
+        self._tp = TrainingProgressRecorder(rconf.patience, rconf.anneal_times, rconf.bad_start_eidx, rconf.bad_start_uidx)
         self.train_recorder = StatRecorder(True)
         self.rconf = rconf
         #
@@ -185,20 +194,24 @@ class TrainingRunner(object):
         #
         self.lrate = ScheduledValue("lrate", rconf.lrate)
         self.lrate_warmup_steps = 0         # set at the start of run()
-        self.scheduled_values = [self.lrate]
-        self.add_scheduled_values(model.get_scheduled_values())
+        self._scheduled_values = [self.lrate]
+
+    @property
+    def scheduled_values(self):
+        return self._scheduled_values + self.model.get_scheduled_values()
 
     def add_scheduled_values(self, sv_list):
         for one in sv_list:
             utils.zlog("Adding scheduled value %s in training." % (one,))
-            self.scheduled_values.append(one)
+            self._scheduled_values.append(one)
 
     def _adjust_scheduled_values(self):
         # schedule values
         ss = self.current_name()
         cur_idxes = self._tp.current_idxes()
         for one_sv in self.scheduled_values:
-            one_sv.adjust_at_ckp(ss, cur_idxes)
+            if one_sv.changeable:
+                one_sv.adjust_at_ckp(ss, cur_idxes)
 
     # =====
     # ending criteria
@@ -249,9 +262,14 @@ class TrainingRunner(object):
             train_result = RecordResult({})
         # dev
         ss = self.current_name()
+        cur_c_idx = self._tp.current_idxes().get('cidx', 0)
         with Timer(tag="valid", info="Valid %s" % ss, print_date=True):
             # validate
-            dev_result = self._run_validate(dev_streams)
+            if len(dev_streams) == 0:  # simply use train if there are no dev
+                utils.zlog("Use training results for dev since there are no dev set provided!", func="warn")
+                dev_result = train_result
+            else:
+                dev_result = self._run_validate(dev_streams)
             # record
             cur_use_save_best = self._reach_save_end()
             if_best, if_save_best, if_anneal = self._tp.checkpoint(train_result, dev_result, cur_use_save_best)
@@ -268,6 +286,9 @@ class TrainingRunner(object):
                     # todo(+2): here overwrite the previous best point, will this small mismatch damage reloading?
                     utils.zlog("But Curr is save_best, overwrite the best point!")
                     self.save(rconf.model_name + rconf.suffix_best)
+            if cur_c_idx > 0 and cur_c_idx % rconf.save_freq == 0:
+                utils.zlog("Save at whole check point: " + ss)
+                self.save(rconf.model_name + ss)
             if if_anneal and self.rconf.anneal_restore:
                 utils.zlog("Restore from previous best model!!")
                 self.load(rconf.model_name+rconf.suffix_best, False)
@@ -414,6 +435,7 @@ class ScheduledValue(object):
         if special_ff is not None:
             assert mode == "none", "Confusing setting for schedule function!"
         #
+        self.changeable = True
         if mode == "linear":
             self._ff = lambda idx: b+k*m*idx
         elif mode == "poly":
@@ -429,11 +451,12 @@ class ScheduledValue(object):
                 self._ff = lambda idx: b+k*special_ff(idx)  # self-defined schedule: lambda idx: return ...
             else:
                 self._ff = lambda idx: 1.0
+                self.changeable = False  # no need to add as scheduled value
         else:
             raise NotImplementedError(mode)
         # init setting
         self._set(0)
-        utils.zlog(f"Init scheduled value {self.name} as {self.cur_val}.")
+        utils.zlog(f"Init scheduled value {self.name} as {self.cur_val} (changeable={self.changeable}).")
 
     @property
     def value(self):

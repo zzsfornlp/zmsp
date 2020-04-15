@@ -19,6 +19,7 @@ class EncConf(Conf):
         self.enc_rnn_type = "lstm2"
         self.enc_rnn_layer = 1
         self.enc_rnn_bidirect = True
+        self.enc_rnn_sep_bidirection = False
         # cnn
         self.enc_cnn_windows = [3, 5]   # split dim by windows
         self.enc_cnn_layer = 0
@@ -61,9 +62,9 @@ class MyEncoder(BasicNode):
         for name in econf.enc_ordering:
             if name == "rnn":
                 if econf.enc_rnn_layer > 0:
-                    rnn_bidirect = econf.enc_rnn_bidirect
+                    rnn_bidirect, rnn_sep_bidirection = econf.enc_rnn_bidirect, econf.enc_rnn_sep_bidirection
                     rnn_enc_size = self.enc_hidden//2 if rnn_bidirect else self.enc_hidden
-                    rnn_layer = self.add_sub_node("rnn", RnnLayerBatchFirstWrapper(pc, RnnLayer(pc, last_dim, rnn_enc_size, econf.enc_rnn_layer, node_type=econf.enc_rnn_type, bidirection=rnn_bidirect)))
+                    rnn_layer = self.add_sub_node("rnn", RnnLayerBatchFirstWrapper(pc, RnnLayer(pc, last_dim, rnn_enc_size, econf.enc_rnn_layer, node_type=econf.enc_rnn_type, bidirection=rnn_bidirect, sep_bidirection=rnn_sep_bidirection)))
                     self.layers.append(rnn_layer)
             # todo(+2): different i/o sizes for cnn and att?
             elif name == "cnn":
@@ -97,11 +98,16 @@ class MyEncoder(BasicNode):
         return (self.output_dim, )
 
     # T[*, seq-len, D], arr[*, seq-len] or None
-    def __call__(self, embeds_expr, word_mask_arr):
+    def __call__(self, embeds_expr, word_mask_arr, return_all_layers=False):
         v = embeds_expr
+        all_layers = []  # not including input!!!
         for one_node in self.layers:
             v = one_node(v, word_mask_arr)
-        return v
+            all_layers.append(v)
+        if return_all_layers:
+            return v, all_layers
+        else:
+            return v
 
     # todo(+2): specific for every type!
     def disable_final_dropout(self):

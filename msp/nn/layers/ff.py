@@ -15,7 +15,8 @@ from msp.utils import zcheck, zwarn, zlog, Random
 # [inputs] or input -> output
 class Affine(BasicNode):
     # n_ins: [n_ins0, n_ins1, ...]
-    def __init__(self, pc, n_ins, n_out, act="linear", bias=True, which_affine=2, name=None, init_rop=None):
+    def __init__(self, pc, n_ins, n_out, n_piece4init=1, init_scale=1.,
+                 act="linear", bias=True, which_affine=2, name=None, init_rop=None):
         super().__init__(pc, name, init_rop)
         # list of n_ins and n_outs have different meanings: horizontal and vertical
         if not isinstance(n_ins, Iterable):
@@ -30,7 +31,7 @@ class Affine(BasicNode):
         self.bias = bias
         self.ws = []
         for i, din in enumerate(n_ins):
-            self.ws.append(self.add_param(name="W", shape=(n_out, din)))
+            self.ws.append(self.add_param(name="W", shape=(n_out, din), out_p4i=n_piece4init, scale=init_scale))
         if bias:
             self.b = self.add_param(name="B", shape=(n_out, ))
         #
@@ -62,11 +63,11 @@ class Affine(BasicNode):
         return "# Affine: %s (%s -> %s [%s])" % (self.name, self.n_ins, self.n_out, self.act)
 
     def __call__(self, input_exp):
+        if not isinstance(input_exp, (list, tuple)):
+            input_exp = [input_exp]
         if self.direct_matmul:
-            h0 = BK.matmul(input_exp, BK.transpose(self.ws[0], 0, 1))
+            h0 = BK.matmul(input_exp[0], BK.transpose(self.ws[0], 0, 1))
         else:
-            if not isinstance(input_exp, (list, tuple)):
-                input_exp = [input_exp]
             zcheck(len(input_exp) == len(self.n_ins), "Unmatched input sizes!")
             input_lists = self._fill_input_list(input_exp)
             h0 = self._affine_f(input_lists)
@@ -135,7 +136,8 @@ class MatrixNode(BasicNode):
 # embedding layer
 # [inputs] or input -> (batched) output
 class Embedding(BasicNode):
-    def __init__(self, pc, n_words, n_dim, fix_row0=True, dropout_wordceil=None, npvec=None, name=None, init_rop=None, freeze=False):
+    def __init__(self, pc, n_words, n_dim, fix_row0=True, dropout_wordceil=None,
+                 npvec=None, name=None, init_rop=None, freeze=False, init_scale=1.,):
         super(Embedding, self).__init__(pc, name, init_rop)
         if npvec is not None:
             if not (len(npvec.shape) == 2 and npvec.shape[0] == n_words and npvec.shape[1] == n_dim):
@@ -149,7 +151,7 @@ class Embedding(BasicNode):
             if freeze:
                 self.rop.add_fixed_value("trainable", False)
                 zwarn("Meaningless to freeze random embeddings?")
-        self.E = self.add_param("E", (n_words, n_dim), init=npvec, lookup=True)
+        self.E = self.add_param("E", (n_words, n_dim), init=npvec, lookup=True, scale=init_scale)
         #
         self.n_words = n_words
         self.n_dim = n_dim
@@ -280,3 +282,73 @@ class RelPosiEmbedding(BasicNode):
         clamped_idx_repr = BK.clamp(BK.input_idx(input_idxes), min=self.min, max=self.max) - self.min
         h0 = BK.lookup(self.E, clamped_idx_repr)
         return h0
+
+# =====
+class PosiEmbedding2(BasicNode):
+    def __init__(self, pc: BK.ParamCollection, n_dim: int, max_val: int=5000, min_val: int=None, init_sincos: bool=True,
+                 freeze: bool=True, no_dropout: bool=True, init_scale=1., zero0=False):
+        super().__init__(pc, None, None)
+        # set range
+        assert max_val>=0
+        if min_val is None:
+            min_val = -max_val
+        self.min_val, self.max_val = min_val, max_val
+        # how to init
+        self.dim = n_dim
+        self.init_sincos = init_sincos
+        self.freeze = freeze
+        self.no_dropout = no_dropout
+        if init_sincos:
+            pe = PosiEmbedding2.init_sincos_arr(min_val, max_val, n_dim, init_scale)  # [all_size, d]
+            if freeze:
+                self.rop.add_fixed_value("trainable", False)
+            else:
+                zwarn("Init-from sin/cos positional embeddings should be freezed?")
+        else:
+            pe = None
+            assert not freeze
+        # params
+        self.offset = 0 - self.min_val  # used to make things into positive for indexing
+        if pe is not None and freeze:
+            self.E = BK.input_real(pe)  # simply static one
+        else:
+            self.E = self.add_param("E", (max_val-min_val+1, n_dim), init=pe, lookup=True, scale=init_scale)
+        # zero 0
+        if zero0:
+            if min_val<=0 and max_val>=0:
+                BK.zero_row(self.E, self.offset)
+            else:
+                zwarn(f"Cannot zero0 for PosiEmbed2 of [{min_val}, {max_val}]")
+        # -----
+        if no_dropout:
+            self.drop_node = lambda x:x
+        else:
+            self.drop_node = self.add_sub_node("drop", Dropout(pc, (self.dim,)))
+
+    @staticmethod
+    def init_sincos_arr(min_val, max_val, n_dim, scale):
+        all_size = max_val - min_val + 1
+        pe = np.zeros([all_size, n_dim])
+        position = np.arange(min_val, max_val+1).reshape([-1, 1])  # [all_size, 1]
+        div_term = np.exp((np.arange(0, n_dim, 2) * -(math.log(10000.)/n_dim)))  # [d//2]
+        div_results = position * div_term
+        pe[:, 0::2] = np.sin(div_results)
+        pe[:, 1::2] = np.cos(div_results)
+        # # scale as embedding, todo(note): not fixed
+        # scale = np.sqrt(3.0 / n_dim)
+        return pe * scale
+
+    def get_output_dims(self, *input_dims):
+        return (self.dim, )
+
+    def __repr__(self):
+        return f"# PositionalEmbedding2: dim={self.dim}, range=[{self.min_val},{self.max_val}], init_sincos={self.init_sincos}"
+
+    def __call__(self, input_idxes):
+        # input should be a list of ints or int
+        if isinstance(input_idxes, int):
+            input_idxes = [input_idxes]
+        clamped_idx_repr = BK.clamp(BK.input_idx(input_idxes), min=self.min_val, max=self.max_val)
+        h0 = BK.lookup(self.E, clamped_idx_repr+self.offset)
+        h1 = self.drop_node(h0)
+        return h1

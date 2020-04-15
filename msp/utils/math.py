@@ -9,9 +9,9 @@ from math import isclose as math_isclose, exp as math_exp
 class MathHelper(object):
     #
     @staticmethod
-    def softmax(vals):
+    def softmax(vals, axis=0):
         exps = np.exp(vals)
-        probs = exps / np.sum(exps, axis=0)
+        probs = exps / np.sum(exps, axis=axis, keepdims=True)
         return probs
 
     @staticmethod

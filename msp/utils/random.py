@@ -26,6 +26,11 @@ class Random(object):
             Random._seeds[task] = g
         return g
 
+    # separate one
+    @staticmethod
+    def create_sep_generator(seed):
+        return np.random.RandomState(seed)
+
     @staticmethod
     def init(seed=None):
         # assert not Random._init_flag, "Cannot init twice Random!"

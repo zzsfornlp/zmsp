@@ -24,9 +24,9 @@ def auto_init():
 auto_init()
 
 # Calling once at start, manually init after the auto one, could override the auto one
-def init(extra_file=None, msp_seed=None):
+def init(extra_file=None, msp_seed=None, quite=False):
     #
-    flist = [stderr]
+    flist = [] if quite else [stderr]
     if extra_file:
         flist.append(extra_file)
     Logger.init(flist)

@@ -3,12 +3,12 @@
 from typing import Dict, Sequence
 
 from msp.utils import zopen, zlog, zwarn, zcheck, StrHelper, FileHelper, Helper, JsonRW, PickleRW, printing, Random
-from collections import Iterable, defaultdict
+from collections import Iterable, defaultdict, OrderedDict
 import numpy as np
 import re
 
-# for binary w2v loading
-from gensim.models import KeyedVectors
+# # for binary w2v loading
+# from gensim.models import KeyedVectors
 
 #
 
@@ -190,7 +190,7 @@ class Vocab(object):
 #
 class VocabHelper:
     # todo(0): I guess this will make them unique
-    SPECIAL_PATTERN = re.compile(r"\<z_([a-zA-Z]{3})_z\>")
+    SPECIAL_PATTERN = re.compile(r"\<z_([a-zA-Z]+)_z\>")
 
     @staticmethod
     def extract_name(w):
@@ -310,12 +310,15 @@ class VocabBuilder(object):
 
     # {word->vals} => {word->idx}, [filtered values]
     @staticmethod
-    def ranking_vals(word_vals, pre_list, post_list, default_val, word_filter=(lambda ww, rank, val: True)):
-        ranked_list = Helper.rank_key(word_vals)
+    def ranking_vals(word_vals, pre_list, post_list, default_val, sort_vals, word_filter=(lambda ww, rank, val: True)):
+        if sort_vals:
+            valid_word_list = Helper.rank_key(word_vals)
+        else:
+            valid_word_list = word_vals.keys()
         #
         truncated_vals = [default_val] * len(pre_list)
         v = dict(zip(pre_list, range(len(pre_list))))
-        for ii, ww in enumerate(ranked_list):
+        for ii, ww in enumerate(valid_word_list):
             rank, val = ii+1, word_vals[ww]
             if word_filter(ww, rank, val):
                 v[ww] = len(v)
@@ -337,9 +340,13 @@ class VocabBuilder(object):
     #
     def finish(self, word_filter=(lambda ww, rank, val: True), sort_by_count=True, target_range=DEFAULT_TARGET_RANGE):
         v = self.v
-        # sort by count-value otherwise adding orders
-        tmp_vals = self.counts_ if sort_by_count else {k:-i for i,k in enumerate(self.keys_) if k in self.counts_}
-        v.v, v.final_vals = VocabBuilder.ranking_vals(tmp_vals, v.pre_list, v.post_list, self.default_val_, word_filter=word_filter)
+        if sort_by_count:
+            v.v, v.final_vals = VocabBuilder.ranking_vals(
+                self.counts_, v.pre_list, v.post_list, self.default_val_, True, word_filter=word_filter)
+        else:
+            tmp_counts_ = OrderedDict([(k, self.counts_[k]) for k in self.keys_])
+            v.v, v.final_vals = VocabBuilder.ranking_vals(
+                tmp_counts_, v.pre_list, v.post_list, self.default_val_, False, word_filter=word_filter)
         v.final_words = Helper.reverse_idx(v.v)
         printing("Build Vocab %s ok, from %d to %d, as %s." % (v.name, len(self.counts_), len(v), str(v)))
         #
@@ -511,6 +518,8 @@ class WordVectors(object):
     def _load_bin(fname):
         printing("Going to load pre-trained (binary) w2v from %s ..." % fname)
         one = WordVectors()
+        #
+        from gensim.models import KeyedVectors
         #
         kv = KeyedVectors.load_word2vec_format(fname, binary=True)
         # KeyedVectors.save_word2vec_format()

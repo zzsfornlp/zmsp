@@ -1,17 +1,18 @@
 #
 
 # The Mingled Structured Prediction (v0plus) package
-# by zzs (from 2018.02 - now)
+# author: zzs
+# time: 2018.02 - now
 
-# dependencies: pytorch, numpy, scipy, gensim, cython, pybind11
-# conda install pytorch numpy scipy gensim cython pybind11
+# dependencies: pytorch, numpy, scipy, gensim, cython, pybind11, pandas
+# conda install pytorch numpy scipy gensim cython pybind11 pandas
 
 VERSION_MAJOR = 0
 VERSION_MINOR = 1
 VERSION_PATCH = 1
 VERSION_STATUS = "dev"
 
-# TODO(!)
+# specific todos
 # nn optimizer / param groups?
 # check nn module (for simplification?)
 # new model/training/testing scheme -> make it more modularized
@@ -20,6 +21,16 @@ VERSION_STATUS = "dev"
 # easy-to-use calculations result-representing tools for analysis
 # various tools for python as the replacement of direct bash shell
 # gru and cnn have problems?
+# ----
+# -- Next Version principles and goals:
+# nlp data types
+# use type hint
+# checkings and reportings
+# use eval for Conf
+# io and serialization
+# summarize more common patterns, including those in scripts
+# everything has (more flexible) conf
+# more flexible save/load for part of model; (better naming and support dynamic adding and deleting components!!)
 
 def version():
     return (VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH, VERSION_STATUS)
