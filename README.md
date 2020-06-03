@@ -12,9 +12,9 @@ How to configurate, generally: [here](docs/conf.md)
 
 Related works:
 
-"A Two-Step Approach for Implicit Event Argument Detection": [todo]()
+"A Two-Step Approach for Implicit Event Argument Detection": [details](docs/iarg.md)
 
-Some other parsers for interested readers: [todo]()
+Some other parsers for interested readers: [details](docs/sop.md)
 
 "An Empirical Investigation of Structured Output Modeling for Graph-based Neural Dependency Parsing": [details](docs/emp_graph.md)
 

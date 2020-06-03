@@ -58,3 +58,6 @@ Please provide the corresponding cmd options for running, including the `normali
 	CUDA_VISIBLE_DEVICES= PYTHONPATH=${SRC_DIR} python3 ${SRC_DIR}/tasks/cmd.py zdpar.main.train train:${DATA_TRAIN} dev:${DATA_DEV} test:${DATA_TEST} pretrain_file:${DATA_EMBED} device:-1 ${base_opt} ${method} ${loss}
 
 Please refer to the script of [`scripts/dpar/zrun1/ztrain.sh`](../scripts/dpar/zrun1/ztrain.sh) for an example of full running.
+
+(Updated in 2020):
+Please refer to the script of [`scripts/dpar/zrun1/go20.sh`](../scripts/dpar/zrun1/go20.sh) for an example of running with the updated repo (in 2020).
