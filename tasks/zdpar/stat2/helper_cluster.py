@@ -13,6 +13,9 @@ class OneCluster:
         self.nodes.extend(other_cluster.nodes)
         # still keep self.head
 
+    def __repr__(self):
+        return f"{self.head}: {self.nodes}"
+
 # greedy nearby clustering with head
 # bottom up decoding
 class ClusterManager:
@@ -24,6 +27,8 @@ class ClusterManager:
         ret = [0] * slen
         procedures = []  # List[(h, m)]
         cur_clusters = start_clusters
+        if allowed_matrix is None:
+            allowed_matrix = np.ones([slen, slen], dtype=np.bool)
         while True:
             # merge candidates between (i, i+1)
             merge_candidates = []
@@ -34,17 +39,31 @@ class ClusterManager:
                 c2_nodes, c2_head = c2.nodes, c2.head
                 if allowed_matrix[c1_head, c2_head] or allowed_matrix[c2_head, c1_head]:
                     merge_candidates.append(midx)
-                    # here using the linking scores
-                    one_score = None  # TODO(!)
+                    # here using the averaged linking scores
+                    one_score = (link_scores[c1_nodes][:,c2_nodes] + link_scores[c2_nodes][:,c1_nodes].T).mean()
                     merge_scores.append(one_score)
             # break if nothing left to merge
             if len(merge_candidates) == 0:
                 break
             # greedily pick the best score
-            best_idx = np.argmax(merge_scores).item()
-            best_c1_idx = merge_candidates[best_idx]
+            best_idx = np.argmax(merge_scores).item()  # idx in current candidates list
+            best_c1_idx = merge_candidates[best_idx]  # idx in cur cluster list
             best_c2_idx = best_c1_idx + 1
-            # TODO(!)
             # determine the direction
-            # prepare for the next iter
-        return ret, procedures
+            togo_c1, togo_c2 = cur_clusters[best_c1_idx], cur_clusters[best_c2_idx]
+            togo_c1_head, togo_c2_head = togo_c1.head, togo_c2.head
+            if head_scores[togo_c1_head] <= head_scores[togo_c2_head]:
+                # c2 as head
+                cur_clusters = cur_clusters[:best_c1_idx] + cur_clusters[best_c2_idx:]
+                procedures.append((togo_c2_head, togo_c1_head))
+                ret[togo_c1_head] = togo_c2_head + 1  # +1 head offset
+            else:
+                # c1 as head
+                cur_clusters = cur_clusters[:best_c1_idx+1] + cur_clusters[best_c2_idx+1:]
+                procedures.append((togo_c1_head, togo_c2_head))
+                ret[togo_c2_head] = togo_c1_head + 1
+        #
+        ret_root = [i for i,v in enumerate(ret) if v==0][0]
+        return ret, ret_root, procedures
+
+# b tasks/zdpar/stat2/helper_cluster:34

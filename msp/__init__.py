@@ -23,7 +23,9 @@ VERSION_STATUS = "dev"
 # gru and cnn have problems?
 # ----
 # -- Next Version principles and goals:
-# nlp data types
+# nlp data types & unified data formats!!
+# model and submodules and ... (composition or inheritance??) !!
+# more flexible namings: model/module name, loss name, data-field names, ...
 # use type hint
 # checkings and reportings
 # use eval for Conf
@@ -31,6 +33,7 @@ VERSION_STATUS = "dev"
 # summarize more common patterns, including those in scripts
 # everything has (more flexible) conf
 # more flexible save/load for part of model; (better naming and support dynamic adding and deleting components!!)
+# a small one: more flexible path finder, for example, multiple upper layers of ".."
 
 def version():
     return (VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH, VERSION_STATUS)

@@ -29,6 +29,7 @@ class SDBasicConf(Conf):
         # io
         self.input_file = ""
         self.output_file = ""
+        self.output_file_ptree = ""  # output for phrase trees
         self.output_pic = ""
         self.rand_input = False
         self.rand_seed = 12345
@@ -39,7 +40,7 @@ class SDBasicConf(Conf):
         self.already_pre_computed = False
         self.fake_scores = False  # create all 0. distance scores for debugging
         self.fconf = FeaturerConf()
-        self.which_fold = -1
+        self.which_fold = 8  # 7~9 generally slightly better
         # msp
         self.niconf = NIConf()  # nn-init-conf
         # todo(+N): how to deal with strange influences of low-freq words? (topic influence?)
@@ -171,12 +172,12 @@ class SentProcessor:
         print("; ".join([f"{one_name}:{info[one_name+'_dhit']}/{info[one_name+'_uhit']}/{info[one_name+'_count']}"
                          for one_name in ["all", "np", "ct", "fun"]]))
         # =====
+        print(sent)
+        print(uposes)
+        print(one_inst.extra_features.get("feat_seq", None))
+        for one_ri, one_seq in enumerate(one_inst.extra_features.get("sd3_repls", [])):
+            print(f"#R{one_ri}: {one_seq}")
         if show_hmap:
-            print(sent)
-            print(uposes)
-            print(one_inst.extra_features.get("feat_seq", None))
-            for one_ri, one_seq in enumerate(one_inst.extra_features.get("sd3_repls", [])):
-                print(f"#R{one_ri}: {one_seq}")
             show_heatmap(sent, distances, True)
         if set_trace:
             import pdb
@@ -246,6 +247,7 @@ def main_loop(conf: SDBasicConf, sp: SentProcessor):
     np.seterr(all='raise')
     nn_init(conf.niconf)
     np.random.seed(conf.rand_seed)
+    records = defaultdict(int)
     #
     # will trigger error otherwise, save time of loading model
     featurer = None if conf.already_pre_computed else Featurer(conf.fconf)
@@ -297,6 +299,11 @@ def main_loop(conf: SDBasicConf, sp: SentProcessor):
                         one_inst.extra_features["sd3_fixed"] = sent_fixed
                         # ===== score
                         folded_distances = featurer.get_scores(sent_repls[-1])
+                        assert len(sent_repls[-1]) == len(word_seq)
+                        # ---
+                        records["repl_count"] += len(word_seq)
+                        records["repl_repl"] += sum(a!=b for a,b in zip(sent_repls[-1], word_seq))
+                        # ---
                         one_inst.extra_features["sd2_scores"] = folded_distances
                         one_inst.extra_features["feat_seq"] = word_seq
                 if output_pic_fd is not None:
@@ -306,6 +313,10 @@ def main_loop(conf: SDBasicConf, sp: SentProcessor):
                     # put prediction
                     one_inst.pred_heads.set_vals([0] + list(one_info["output"][0]))
                     one_inst.pred_labels.set_vals(["_"] * len(one_inst.labels.vals))
+                    #
+                    phrase_tree_string = one_info.get("phrase_tree")
+                    if phrase_tree_string is not None:
+                        one_inst.extra_pred_misc["phrase_tree"] = phrase_tree_string
                 all_insts.append(one_inst)
     if output_pic_fd is not None:
         output_pic_fd.close()
@@ -313,5 +324,11 @@ def main_loop(conf: SDBasicConf, sp: SentProcessor):
         with zopen(conf.output_file, 'w') as wfd:
             data_writer = get_data_writer(wfd, "conllu")
             data_writer.write(all_insts)
+    if conf.output_file_ptree:
+        with zopen(conf.output_file_ptree, 'w') as wfd:
+            for one_inst in all_insts:
+                phrase_tree_string = one_inst.extra_pred_misc.get("phrase_tree")
+                wfd.write(str(phrase_tree_string)+"\n")
     # -----
+    Helper.printd(records)
     Helper.printd(sp.summary())

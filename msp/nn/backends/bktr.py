@@ -118,7 +118,9 @@ class Optim:
             for param_group in self.opt_.param_groups:
                 param_group['lr'] = cur_lrate
             self.cached_lrate_ = cur_lrate
-        if cur_lrate<=0. and self.no_step_lrate0_:
+        # check if we need update
+        parameters = list(filter(lambda p: p.grad is not None, self.params_))
+        if (cur_lrate<=0. and self.no_step_lrate0_) or (len(parameters) == 0):
             # no update
             self.opt_.zero_grad()
         else:

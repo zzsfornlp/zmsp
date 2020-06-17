@@ -22,6 +22,12 @@ class ParserVocabPackage(VocabPackage):
         one.load(dconf.dict_dir)
         return one
 
+    # =====
+    # pre-values for UDv2
+    PRE_VALUES_ULAB = ["punct", "case", "nsubj", "det", "root", "<z_r_z>", "nmod", "advmod", "obj", "obl", "amod", "compound", "aux", "conj", "mark", "cc", "cop", "advcl", "acl", "xcomp", "nummod", "ccomp", "appos", "flat", "parataxis", "discourse", "expl", "fixed", "list", "iobj", "csubj", "goeswith", "vocative", "reparandum", "orphan", "dep", "dislocated", "clf"]
+    PRE_VALUES_UPOS = ["NOUN", "PUNCT", "VERB", "PRON", "ADP", "DET", "PROPN", "<z_r_z>", "ADJ", "AUX", "ADV", "CCONJ", "PART", "NUM", "SCONJ", "X", "INTJ", "SYM"]
+    # =====
+
     @staticmethod
     def build_from_stream(dconf: DConf, stream, extra_stream):
         zlog("Build vocabs from streams.")
@@ -32,13 +38,22 @@ class ParserVocabPackage(VocabPackage):
         pos_builder = VocabBuilder("pos")
         label_builder = VocabBuilder("label")
         word_normer = ret.word_normer
+        if dconf.vocab_add_prevalues:
+            zlog(f"Add pre-defined values for upos({len(ParserVocabPackage.PRE_VALUES_UPOS)}) and "
+                 f"ulabel({len(ParserVocabPackage.PRE_VALUES_ULAB)}).")
+            pos_builder.feed_stream(ParserVocabPackage.PRE_VALUES_UPOS)
+            label_builder.feed_stream(ParserVocabPackage.PRE_VALUES_ULAB)
         for inst in stream:
             # todo(warn): only do special handling for words
+            # there must be words
             word_builder.feed_stream(word_normer.norm_stream(inst.words.vals))
             for w in inst.words.vals:
                 char_builder.feed_stream(w)
-            pos_builder.feed_stream(inst.poses.vals)
-            label_builder.feed_stream(inst.labels.vals)
+            # pos and label can be optional
+            if inst.poses.has_vals():
+                pos_builder.feed_stream(inst.poses.vals)
+            if inst.labels.has_vals():
+                label_builder.feed_stream(inst.labels.vals)
         #
         w2vec = None
         if dconf.init_from_pretrain:

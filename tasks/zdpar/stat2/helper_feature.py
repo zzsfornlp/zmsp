@@ -20,16 +20,21 @@ class FeaturerConf(Conf):
         self.use_bert = True
         self.bconf = BerterConf().init_from_kwargs(bert_sent_extend=0, bert_root_mode=-1, bert_zero_pademb=True,
                                                    bert_layers="[0,1,2,3,4,5,6,7,8,9,10,11,12]")
+        # todo(note): generally 'first' strategy is slightly worse, finally using all+MASK+mse+layer8
         # for bert
-        self.b_mask_mode = "first"  # all/first/one/pass
+        self.b_mask_mode = "all"  # all/first/one/pass
         self.b_mask_repl = "[MASK]"  # or other things like [UNK], [PAD], ...
+        # subword mode for bert
+        self.b_use_subword = False  # use subword mode
+        self.b_subword_aggr = "max"  # how to aggregate distances in subword mode for words
         # for g1p
         self.g1p_replace_unk = True  # otherwise replace with 0
         # distance (influence scores)
-        self.dist_f = "cos"  # cos or mse
+        self.dist_f = "mse"  # cos or mse
         # for bert repl
         self.br_vocab_file = ""
         self.br_rank_thresh = 100  # rank threshold >=this for non-topical words
+        self.br_only_topical = True  # only change topical words
 
     def do_validate(self):
         assert self.use_bert, "currently only implemented the bert mode"
@@ -43,6 +48,7 @@ class Featurer:
         # used for bert-repl: self.repl_sent()
         self.br_vocab = Vocab.read(conf.br_vocab_file) if conf.br_vocab_file else None
         self.br_rthresh = conf.br_rank_thresh
+        self.br_only_topical = conf.br_only_topical
 
     # replace (simplify) sentence by replacing with bert predictions
     # todo(note): remember that the main purpose is to remove surprising topical words but retain syntax structure
@@ -89,12 +95,13 @@ class Featurer:
             if one_idx>=sent_len or is_fixed[one_idx]:  # hit boundary
                 if len(prev_cands)>0:
                     prev_cands.sort(key=lambda x: -x[-1])
-                    togo_idx, togo_score = prev_cands[0]
-                    if togo_score > 0:  # only change it if not forbidden
+                    togo_idx, togo_word, togo_score = prev_cands[0]
+                    if togo_score > 0 and (not self.br_only_topical or togo_word in topical_words_count):
+                        # only change it if not forbidden and in topical input words if flag set
                         ret_seq[togo_idx] = pred_strs[togo_idx]
                     prev_cands.clear()
             else:
-                prev_cands.append((one_idx, changing_scores[one_idx]))
+                prev_cands.append((one_idx, sent[one_idx], changing_scores[one_idx]))
         # todo(+N): whether fix changed word? currently nope
         return ret_seq, np.asarray(is_fixed).astype(np.bool)
 
@@ -102,7 +109,29 @@ class Featurer:
     def get_scores(self, sent: List[str]):
         # get features
         conf = self.conf
-        features = encode_bert(self.berter, sent, conf.b_mask_mode, conf.b_mask_repl)  # [1+slen, 1+slen, fold*D]
+        # =====
+        if conf.b_use_subword:
+            range_base_idx = 0
+            input_sent = []
+            tokenizer = self.berter.tokenizer
+            all_subwords = []
+            word_ranges = []
+            for i, t in enumerate(sent):
+                cur_toks = tokenizer.tokenize(t)
+                # in some cases, there can be empty strings -> put the original word
+                if len(cur_toks) == 0:
+                    cur_toks = [t]
+                cur_len = len(cur_toks)
+                all_subwords.append(cur_toks)
+                word_ranges.append((range_base_idx, range_base_idx+cur_len))
+                range_base_idx += cur_len
+                input_sent.extend(cur_toks)
+        else:
+            word_ranges = None
+            input_sent = sent
+        # =====
+        # normal calculating
+        features = encode_bert(self.berter, input_sent, conf.b_mask_mode, conf.b_mask_repl)  # [1+slen, 1+slen, fold*D]
         orig_feature_shape = BK.get_shape(features)
         folded_shape = orig_feature_shape[:-1] + [self.fold, orig_feature_shape[-1]//self.fold]
         all_features = features.view(folded_shape)  # [1+slen, 1+slen, fold, D]
@@ -115,7 +144,26 @@ class Featurer:
             scores = BK.sqrt(((all_features[1:] - all_features[0].unsqueeze(0)) ** 2).mean(-1))
         else:
             raise NotImplementedError()
-        return scores.cpu().numpy()
+        scores_arr = scores.cpu().numpy()
+        # =====
+        # convert back to word mode if needed
+        aggr_f = {"max": np.max, "avg": np.mean}[conf.b_subword_aggr]
+        if conf.b_use_subword:
+            slen = len(sent)
+            assert slen == len(word_ranges)
+            # repack scores_arr
+            new_scores_arr = np.zeros([slen, slen+1, self.fold])
+            for idx_i in range(slen):
+                ri_a, ri_b = word_ranges[idx_i]
+                # to CLS
+                new_scores_arr[idx_i, 0] = aggr_f(scores_arr[ri_a:ri_b, 0], axis=0)
+                # to others
+                for idx_j in range(slen):
+                    rj_a, rj_b = word_ranges[idx_j]
+                    new_scores_arr[idx_i, idx_j+1] = aggr_f(aggr_f(scores_arr[ri_a:ri_b, rj_a+1:rj_b+1], axis=0), axis=0)
+            return new_scores_arr
+        else:
+            return scores_arr
 
     def output_shape(self, slen):
         return [slen, slen+1, len(self.conf.bconf.bert_layers)]

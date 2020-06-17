@@ -47,7 +47,9 @@ class DConf(Conf):
         # special processing
         self.lower_case = False
         self.norm_digit = False     # norm digits to 0
-        self.use_label0 = False     # using only first-level label
+        self.use_label0 = True     # using only first-level label # todo(note): change the default behaviour
+        zwarn("Note: currently we change default value of 'use_label0' to True!")
+        self.vocab_add_prevalues = True  # add pre-defined UDv2 values when building dicts
         # =====
         # for multi-lingual processing (another option is to pre-processing suitable data)
         # language code (empty str for no effects)
@@ -89,6 +91,9 @@ class DepParserConf(Conf):
         elif partype == "s2":
             from ..ef.parser import S2ParserConf
             self.pconf = S2ParserConf()
+        elif partype == "fp":
+            from ..zfp.fp import FpParserConf
+            self.pconf = FpParserConf()
         else:
             zfatal(f"Unknown parser type: {partype}, please provide correct type with the option.")
         # =====
@@ -125,6 +130,10 @@ def build_model(partype, conf, vpack):
         # two-stage parser
         from ..ef.parser import S2Parser
         parser = S2Parser(pconf, vpack)
+    elif partype == "fp":
+        # the finale parser
+        from ..zfp.fp import FpParser
+        parser = FpParser(pconf, vpack)
     else:
         zfatal("Unknown parser type: %s")
     return parser

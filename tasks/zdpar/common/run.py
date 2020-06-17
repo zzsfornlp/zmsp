@@ -54,8 +54,8 @@ def index_stream(in_stream, vpack, cached, cache_shuffle, inst_preparer):
 def batch_stream(in_stream, ticonf, training):
     if training:
         b_stream = BatchArranger(in_stream, batch_size=ticonf.batch_size, maxibatch_size=20, batch_size_f=None,
-                                 dump_detectors=lambda one: len(one)>=ticonf.train_skip_length, single_detectors=None,
-                                 sorting_keyer=len, shuffling=ticonf.shuffle_train)
+                                 dump_detectors=lambda one: len(one)>=ticonf.train_skip_length or len(one)<ticonf.train_min_length,
+                                 single_detectors=None, sorting_keyer=len, shuffling=ticonf.shuffle_train)
     else:
         b_stream = BatchArranger(in_stream, batch_size=ticonf.batch_size, maxibatch_size=-1, batch_size_f=None,
                                  dump_detectors=None, single_detectors=lambda one: len(one)>=ticonf.infer_single_length,

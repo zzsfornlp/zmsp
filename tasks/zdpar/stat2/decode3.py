@@ -10,7 +10,8 @@ from msp.utils import Helper, zlog
 from msp.data.vocab import Vocab
 from tasks.zdpar.common.data import ParseInstance
 from .helper_basic import SentProcessor, main_loop, show_heatmap, SDBasicConf
-from .helper_decode import get_decoder, get_fdecoder, IRConf, IterReducer
+from .helper_decode import get_decoder, get_fdecoder, IRConf, IterReducer, CKYConf, CKYParser
+from .helper_cluster import ClusterManager, OneCluster
 
 #
 class SD3Conf(SDBasicConf):
@@ -23,6 +24,7 @@ class SD3Conf(SDBasicConf):
         # =====
         # reducer
         self.ir_conf = IRConf()
+        self.cky_conf = CKYConf()
         # =====
         # leaf layer decoding
         self.use_fdec = False
@@ -36,7 +38,7 @@ class SD3Conf(SDBasicConf):
         self.fdec_Tlambda = 1.  # if use score, lambda for transpose one
         # main layer decoding
         self.mdec_aggregate_scores = False  # aggregate score from fdec
-        self.mdec_method = "m2"  # upper layer decoding method: l2r/r2l/rand/m1/m2/m3/m3s/m4(recursive-reduce)
+        self.mdec_method = "cky"  # upper layer decoding method: l2r/r2l/rand/m1/m2/m3/m3s/cky
         self.mdec_proj = True
         self.mdec_oper = "add"  # operation between O/T
         self.mdec_Olambda = 1.  # if use score, lambda for origin one
@@ -60,12 +62,14 @@ class SentProcessor3(SentProcessor):
         self.fdec_oper = oper_dict[conf.fdec_oper]
         self.mdec_oper = oper_dict[conf.mdec_oper]
         #
-        self.ir_reducer = IterReducer(conf.ir_conf)
-        #
         if conf.fdec_vocab_file:
             self.r_vocab = Vocab.read(conf.fdec_vocab_file)
         else:
             self.r_vocab = None
+        #
+        self.ir_reducer = IterReducer(conf.ir_conf)
+        self.cky_parser = CKYParser(conf.cky_conf, self.r_vocab)
+        self.cluster_manager = ClusterManager()
 
     # =====
     # todo(note): no arti-ROOT in inputs
@@ -128,12 +132,19 @@ class SentProcessor3(SentProcessor):
             mdec_idxes = list(range(slen))
         # =====
         # step 2: main layer
-        root_scores = np.zeros(slen)  # TODO(!)
+        res_tree = None
+        root_scores = np.copy(orig_distances[:, 0])  # todo(+2): other types?
         if conf.mdec_aggregate_scores:
-            pass  # TODO(!)
+            pass  # TODO(+N)
         if conf.mdec_method == "m3s":
             # special decoding starting from a middle step of m3
-            pass  # TODO(!)
+            original_scores = influence_scores
+            processed_scores = self.mdec_oper(conf.mdec_Olambda * original_scores, conf.mdec_Tlambda * (original_scores.T))
+            ir_reduce_rank, _ = self.ir_reducer.reduce(influence_scores, orig_distances[:, 0])  # rank as the head score
+            #
+            start_clusters = [OneCluster(group_idxes[i], i) for i in mdec_idxes]
+            output_heads, output_root, cluster_procedure = self.cluster_manager.cluster(
+                len(sent), start_clusters, None, processed_scores, ir_reduce_rank)
         else:
             # decoding the contracted sent (only mdec_idxes)
             original_scores = influence_scores
@@ -142,7 +153,11 @@ class SentProcessor3(SentProcessor):
             processed_scores = processed_scores[mdec_idxes, :][:, mdec_idxes]
             root_scores = root_scores[mdec_idxes]
             if len(processed_scores)>0:
-                output_heads, output_root = self.mdecoder(processed_scores, original_scores, root_scores, conf.mdec_proj)
+                if conf.mdec_method == "cky":
+                     res_tree, res_deps = self.cky_parser.parse(sent, uposes, fun_masks, original_scores, root_scores)
+                     output_heads, output_root = res_deps
+                else:
+                    output_heads, output_root = self.mdecoder(processed_scores, original_scores, root_scores, conf.mdec_proj)
                 # restore all
                 assert len(output_heads) == len(mdec_idxes)
                 output_root = mdec_idxes[output_root]
@@ -168,8 +183,12 @@ class SentProcessor3(SentProcessor):
         #
         if conf.show_result:
             self.eval_order_verbose(dep_heads, ir_reduce_order, sent, dep_labels)
+            if res_tree is not None:
+                zlog("#-----\n"+res_tree.get_repr(False,False)+"\n"+res_tree.get_repr(True,False)+"\n#-----")
             self._show(one_inst, output_heads, ret_info, conf.show_heatmap, aug_influence_scores, True)
         #
+        if res_tree is not None:
+            ret_info["phrase_tree"] = res_tree.get_repr(add_head=False, fake_nt=True)
         self.infos.append(ret_info)
         return ret_info
 
@@ -194,5 +213,21 @@ def main(args):
 # PYTHONPATH=../src/ python3 -m pdb ../src/tasks/cmd.py zdpar.stat2.decode3 input_file:en_cut.ppos.conllu
 # PYTHONPATH=../src/ python3 -m pdb ../src/tasks/cmd.py zdpar.stat2.decode3 input_file:_en_dev.ppos.pic already_pre_computed:1
 # PYTHONPATH=../src/ python3 -m pdb ../src/tasks/cmd.py zdpar.stat2.decode3 input_file:_en_dev.ppos.pic already_pre_computed:1 show_result:1 show_heatmap:1 min_len:10 max_len:20 rand_input:1 rand_seed:100
+# PYTHONPATH=../src/ python3 -m pdb ../src/tasks/cmd.py zdpar.stat2.decode3 input_file:./_en_dev.all.MASK.mse.pic already_pre_computed:1
+# =====
+# basic
+# PYTHONPATH=../src/ python3 -m pdb ../src/tasks/cmd.py zdpar.stat2.decode3 input_file:./_en_dev.all.MASK.mse.pic already_pre_computed:1
+# wsj
+# PYTHONPATH=../src/ python3 ../src/tasks/cmd.py zdpar.stat2.decode3 input_file:wsj23.conllu output_file:w23.out1 output_file_ptree:w23.out2 output_pic:w23.pic
+# PYTHONPATH=../src/ python3 ../src/tasks/cmd.py zdpar.stat2.decode3 input_file:./w23.pic already_pre_computed:1 output_file:w23.out1 output_file_ptree:w23.out2 ps_pp:1
+# -----
+# repl
+# PYTHONPATH=../src/ python3 ../src/tasks/cmd.py zdpar.stat2.decode3 input_file:en_dev.ppos.conllu output_pic:_en_dev.brepl.pic br_vocab_file:./en.voc sent_repl_times:1
+# -----
+# subword mode
+# PYTHONPATH=../src/ python3 ../src/tasks/cmd.py zdpar.stat2.decode3 input_file:en_dev.ppos.conllu output_pic:_en_dev.subword.pic b_use_subword:1 b_subword_aggr:max
+# -----
+# decoding method
+# PYTHONPATH=../src/ python3 -m pdb ../src/tasks/cmd.py zdpar.stat2.decode3 input_file:./_en_dev.all.MASK.mse.pic already_pre_computed:1 ps_pp:1 mdec_method:m3s
 
 # b tasks/zdpar/stat2/decode3:138

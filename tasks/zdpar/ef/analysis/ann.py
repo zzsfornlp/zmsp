@@ -97,7 +97,7 @@ class ParsingAnalyzer(Analyzer):
     # -----
     # looking/annotating at specific instances. protocol: target
 
-    # start new annotation task or TODO(!) recover the previous one
+    # start new annotation task or TODO(+N) recover the previous one
     def do_ann_start(self, insts_target: str) -> AnnotationTask:
         assert self.cur_cmd_target is not None, "Should assign this to a var to avoid accidental loss!"
         vs = self.vars

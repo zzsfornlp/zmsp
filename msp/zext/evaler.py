@@ -35,12 +35,13 @@ class F1Result:
         return self.f1
 
 class LabelF1Evaler:
-    def __init__(self, name):
+    def __init__(self, name, ignore_none=False):
         # key -> List[labels]
         self.name = name
         self.golds = {}
         self.preds = {}
         self.labels = set()
+        self.ignore_none = ignore_none
 
     # =====
     # adding ones
@@ -53,9 +54,13 @@ class LabelF1Evaler:
         self.labels.add(label)
 
     def add_gold(self, key, label):
+        if key is None and self.ignore_none:
+            return
         self._add_group(self.golds, key, label)
 
     def add_pred(self, key, label):
+        if key is None and self.ignore_none:
+            return
         self._add_group(self.preds, key, label)
 
     # =====

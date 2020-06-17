@@ -3,7 +3,7 @@
 # colorful printing
 
 try:
-    from colorama import colorama_init
+    from colorama import init as colorama_init
     colorama_init()
     from colorama import Fore, Back, Style
     RESET_ALL = Style.RESET_ALL

@@ -283,6 +283,7 @@ class BaseTrainingConf(RConf):
         self.load_process = False
         # batch arranger
         self.batch_size = 32
+        self.train_min_length = 0
         self.train_skip_length = 120
         self.shuffle_train = True
         # optimizer and lrate factor for enc&dec&sl(mid)
