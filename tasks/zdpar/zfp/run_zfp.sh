@@ -47,10 +47,13 @@ base_opt+=" lrate.val:0.00005 lrate.min_val:0.000001 tconf.batch_size:16 lrate.m
 # which system
 base_opt+=" partype:fp use_label0:1"
 
+if [[ ${NOFTBERT} == 1 ]]; then
+# simply use features
+base_opt+=" bert2_model:bert-base-multilingual-cased bert2_output_layers:[6,8,10] bert2_trainable_layers:0 lrate.val:0.0002"
+else
 # fine-tune bert
-base_opt+=" bert2_model:bert-base-multilingual-cased bert2_output_layers:[-1] bert2_trainable_layers:13"
-# or simply use features
-#base_opt+=" bert2_model:bert-base-multilingual-cased bert2_output_layers:[4,6,8]"
+base_opt+=" bert2_model:bert-base-multilingual-cased bert2_output_layers:[-1] bert2_trainable_layers:13 lrate.val:0.00005"
+fi
 
 # decoder
 base_opt+=" arc_space:512 lab_space:128"
@@ -93,6 +96,8 @@ if [[ ${USE_RDIR} != "" ]]; then
 cd $OLDPWD
 fi
 
-
 # =====
-# RGPU=1 DEBUG= CUR_LANG=en CUR_RUN=1 USERNN=0 USEATT=0 USE_RDIR= bash _go.sh
+# fine-tune bert
+# RGPU=1 DEBUG= CUR_LANG=en CUR_RUN=1 USERNN=0 USEATT=0 NOFTBERT=0 USE_RDIR= bash _go.sh
+# bert-features + 6-layer transformer
+# RGPU=1 DEBUG= CUR_LANG=en CUR_RUN=1 USERNN=0 USEATT=1 NOFTBERT=1 USE_RDIR= bash _go.sh

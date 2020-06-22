@@ -2,7 +2,7 @@
 
 Hi, this describes our implementation for our ACL-2020 paper: "A Two-Step Approach for Implicit Event Argument Detection".
 
-Please refer to the paper for more details: [[paper]](https://www.aclweb.org/anthology/??) [[bib]](https://aclweb.org/anthology/papers/??)
+Please refer to the paper for more details: [[paper]](https://www.aclweb.org/anthology/2020.acl-main.667.pdf) [[bib]](https://www.aclweb.org/anthology/2020.acl-main.667.bib)
 
 ### Repo
 
