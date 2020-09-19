@@ -12,6 +12,8 @@ How to configurate, generally: [here](docs/conf.md)
 
 Related works:
 
+"An Empirical Exploration of Local Ordering Pre-training for Structured Prediction": [TODO](??)
+
 "A Two-Step Approach for Implicit Event Argument Detection": [details](docs/iarg.md)
 
 Some other parsers for interested readers: [details](docs/sop.md)

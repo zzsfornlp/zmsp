@@ -38,7 +38,7 @@ def zwarn(s):
     zlog("!!"+str(s))
 
 # =====
-LANG_NAME_MAP = {'es': 'spanish', 'zh': 'chinese', 'en': 'english'}
+LANG_NAME_MAP = {'es': 'spanish', 'zh': 'chinese', 'en': 'english', 'ru': 'russian', 'uk': 'ukraine'}
 
 # map CTB pos tags to UD (partially reference "Developing Universal Dependencies for Mandarin Chinese")
 CORENLP_POS_TAGS = [
