@@ -17,6 +17,8 @@ As those of the main `msp` package:
 
 Please refer to [`scripts/ie/iarg/conda_env_zie.yml`](../scripts/ie/iarg/conda_env_zie.yml) for an example of specific conda environment and you can specify conda environment using this.
 
+(**note**: Please try to specify these versions of the corresponding libraries, since we find that there may be errors if using versions newer than these: `python3.6 + pytorch1.0.0 + transformers2.8.0`)
+
 ### Data Preparation
 
 Please refer to [`scripts/ie/iarg/prepare_data.sh`](../scripts/ie/iarg/prepare_data.sh) for more details. To be noted, for easier processing, we transformed from RAMS's format to our own format.

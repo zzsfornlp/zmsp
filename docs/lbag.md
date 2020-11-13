@@ -1,12 +1,12 @@
 ### For the Local Bag pre-training method
 
-Hi, this describes our implementation for our work: "An Empirical Exploration of Local Ordering Pre-training for Structured Prediction".
+Hi, this describes our implementation for our Findings-of-EMNLP20 paper: "An Empirical Exploration of Local Ordering Pre-training for Structured Prediction".
 
-Please refer to the paper for more details: [[paper]](TODO) [[bib]](TODO)
+Please refer to the paper for more details: [[paper]](https://www.aclweb.org/anthology/2020.findings-emnlp.160/) [[bib]](https://www.aclweb.org/anthology/2020.findings-emnlp.160.bib)
 
 ### Repo
 
-When we were carrying out our experiments for this work, we used the repo at this commit [`here`](TODO). In later versions of this repo, there may be slight changes (for example, default hyper-parameter change or hyper-parameter name change).
+When we were carrying out our experiments for this work, we used the repo at this commit [`here`](https://github.com/zzsfornlp/zmsp/commit/c58ccd9c0f51bcdec3488cbdfec3b5d70d7f0728). In later versions of this repo, there may be slight changes (for example, default hyper-parameter change or hyper-parameter name change).
 
 ### Environment
 

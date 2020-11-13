@@ -12,7 +12,7 @@ How to configurate, generally: [here](docs/conf.md)
 
 Related works:
 
-"An Empirical Exploration of Local Ordering Pre-training for Structured Prediction": [TODO](??)
+"An Empirical Exploration of Local Ordering Pre-training for Structured Prediction": [details](docs/lbag.md)
 
 "A Two-Step Approach for Implicit Event Argument Detection": [details](docs/iarg.md)
 
