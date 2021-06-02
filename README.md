@@ -4,20 +4,20 @@ Hi, here are some tools possibly useful for Structured Prediction tasks.
 
 -----
 
-Requirements and how to run, generally: [here](docs/run.md)
+#### Related works:
 
-How to configurate, generally: [here](docs/conf.md)
+"Comparing Span Extraction Methods for Semantic Role Labeling": [TODO]
 
 -----
 
-Related works:
+- The following ones are using zmsp-[v1](./v1) (which is deprecated now)
 
-"An Empirical Exploration of Local Ordering Pre-training for Structured Prediction": [details](docs/lbag.md)
+"An Empirical Exploration of Local Ordering Pre-training for Structured Prediction": [details](./v1/docs/lbag.md)
 
-"A Two-Step Approach for Implicit Event Argument Detection": [details](docs/iarg.md)
+"A Two-Step Approach for Implicit Event Argument Detection": [details](./v1/docs/iarg.md)
 
-Some other parsers for interested readers: [details](docs/sop.md)
+Some other parsers for interested readers: [details](./v1/docs/sop.md)
 
-"An Empirical Investigation of Structured Output Modeling for Graph-based Neural Dependency Parsing": [details](docs/emp_graph.md)
+"An Empirical Investigation of Structured Output Modeling for Graph-based Neural Dependency Parsing": [details](./v1/docs/emp_graph.md)
 
-"On Difficulties of Cross-Lingual Transfer with Order Differences: A Case Study on Dependency Parsing": [details](docs/cl0.md)
+"On Difficulties of Cross-Lingual Transfer with Order Differences: A Case Study on Dependency Parsing": [details](./v1/docs/cl0.md)
