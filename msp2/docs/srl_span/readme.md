@@ -1,12 +1,12 @@
 ### For Comparing Span Extraction Methods for SRL
 
-Hi, this describes our implementation for our paper: "Comparing Span Extraction Methods for Semantic Role Labeling".
+Hi, this describes our implementation for our SPNLP-21 paper: "Comparing Span Extraction Methods for Semantic Role Labeling".
 
-Please refer to the paper for more details: [TODO]()
+Please refer to the paper for more details: [[paper]](https://aclanthology.org/2021.spnlp-1.8/) [[bib]](https://aclanthology.org/2021.spnlp-1.8.bib)
 
 ### Repo
 
-When we were carrying out our experiments for this work, we used the repo at this commit [TODO](). In later versions of this repo, there may be slight changes (for example, default hyper-parameter change or hyper-parameter name change).
+When we were carrying out our experiments for this work, we used the repo at this commit [`here`](https://github.com/zzsfornlp/zmsp/commit/0f346045a8c14c5eab94587ed662f6020f5ce3b2). In later versions of this repo, there may be slight changes (for example, default hyper-parameter change or hyper-parameter name change).
 
 Clone this repo:
 	
