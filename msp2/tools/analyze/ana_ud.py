@@ -37,6 +37,7 @@ class UDAnalyzer(Analyzer):
         self.evaler = DparEvaler(conf.econf)
         # --
         all_sents = [list(yield_sents(main_insts))]
+        all_toks = [[t for s in yield_sents(main_insts) for t in s.tokens]]
         for one_pidx, one_pred in enumerate(conf.preds):
             one_insts = list(conf.extra.get_reader(input_path=one_pred))  # get all of them
             one_sents = list(yield_sents(one_insts))
@@ -46,13 +47,20 @@ class UDAnalyzer(Analyzer):
             zlog(f"#=====\nEval with {conf.main} vs. {one_pred}: res = {eres}\n{eres.get_detailed_str()}")
             # --
             all_sents.append(one_sents)
+            all_toks.append([t for s in one_sents for t in s.tokens])
         # --
         s_lists = [MatchedList(z) for z in zip(*all_sents)]
         self.set_var("sl", s_lists, explanation="init")  # sent pair
+        s_toks = [MatchedList(z) for z in zip(*all_toks)]
+        self.set_var("tl", s_toks, explanation="init")  # token pair
         # --
 
     @classmethod
     def get_ann_type(cls): return UDAnnotationTask
+
+    def do_break_eval2(self, insts_target: str, pcode: str, gcode: str,
+                       corr_code="d.pred.head_idx==d.gold.head_idx and d.pred.deplab==d.gold.deplab", pint=0, **kwargs):
+        super().do_break_eval2(insts_target, pcode, gcode, corr_code=corr_code, pint=pint, **kwargs)
 
 class UDAnnotationTask(AnnotationTask):
     def __init__(self, objs: List):

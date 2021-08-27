@@ -184,6 +184,59 @@ class MyPrettyPrinter:
             cur_sid += 1
         return "\n".join(all_ss)
 
+    # another pretty printer for sent
+    @staticmethod
+    def str_sent2(s: Sent, conf: MyPrettyPrinterConf = None, **kwargs):
+        if s is None:
+            return "[None]"
+        # --
+        conf = MyPrettyPrinterConf.direct_conf(conf, **kwargs)
+        item_map = {}
+        # --
+        def _str_sent(_s: Sent, _is_center: bool):
+            _toks = list(_s.seq_word.vals)
+            _lines = []
+            # highlight span
+            for _tidx in range(conf.sent_hlspan0, conf.sent_hlspan1):
+                _toks[_tidx] = wrap_color(_toks[_tidx], bcolor=conf.color_highlight)
+            _ef_toks = _toks.copy()
+            _evt_toks = _toks.copy()
+            # check efs
+            if _s.entity_fillers is not None:
+                for _e in _s.entity_fillers:
+                    assert id(_e) not in item_map
+                    item_map[id(_e)] = f"E{len(item_map)}"
+                    MyPrettyPrinter.add_anns(_ef_toks, [(_e.mention, item_map[id(_e)], conf.color_arg)])
+                    _lines.append(f"[{wrap_color(item_map[id(_e)], bcolor=conf.color_arg)}]: {_e} {_e.info}")
+            # check evts
+            if _is_center:
+                if _s.events is not None:
+                    for _e in _s.events:
+                        assert id(_e) not in item_map
+                        item_map[id(_e)] = f"E{len(item_map)}"
+                        MyPrettyPrinter.add_anns(_evt_toks, [(_e.mention, item_map[id(_e)], conf.color_frame)])
+                        _lines.append(f"[{wrap_color(item_map[id(_e)], bcolor=conf.color_frame)}]: {_e} {_e.info}")
+                        _tmps = [f"{a.label}->[{wrap_color(item_map.get(id(a.arg), '??'), bcolor=conf.color_arg)}]"
+                                 for a in _e.args]
+                        _lines.append("[args]=>" + "  ".join(_tmps))
+            # --
+            _lines = [" ".join(_ef_toks), " ".join(_evt_toks)] + _lines
+            return "\n".join(_lines)
+        # --
+        if s.doc is not None:
+            sid = s.sid
+            pre_sents = s.doc.sents[max(0,sid-conf.sent_win):sid]
+            post_sents = s.doc.sents[sid+1:sid+conf.sent_win+1]
+        else:
+            pre_sents = post_sents = []
+        cur_sid = -len(pre_sents)
+        all_ss = []
+        for s2 in pre_sents+[s]+post_sents:
+            one_ss = f"[S{cur_sid}]({s2.sid}) {_str_sent(s2, s2 is s)}"
+            all_ss.append(one_ss)
+            cur_sid += 1
+        return "\n".join(all_ss)
+
     # some helpers
     @staticmethod
     def add_anns(toks: List[str], anns: List[Tuple[Mention, str, str]]):

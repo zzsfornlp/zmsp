@@ -6,11 +6,15 @@ Hi, here is a probably useful repo for Structured Prediction tasks.
 
 #### Related works:
 
+(* The following ones are using the current version of zmsp-[v2](./msp2).)
+
+- "On the Benefit of Syntactic Supervision for Cross-lingual Transfer in Semantic Role Labeling": [details](./msp2/docs/srl_cl/readme.md)
+
 - "Comparing Span Extraction Methods for Semantic Role Labeling": [details](./msp2/docs/srl_span/readme.md)
 
 -----
 
-(* The following ones are using zmsp-[v1](./v1), which is deprecated now.)
+(* The following ones are using the older version of zmsp-[v1](./v1).)
 
 - "An Empirical Exploration of Local Ordering Pre-training for Structured Prediction": [details](./v1/docs/lbag.md)
 

@@ -192,58 +192,6 @@ class FrameAnalyzer(Analyzer):
         # --
         return i_lists, s_lists, t_lists, f_lists, a_lists
 
-    # --
-    # do breakdown and eval
-
-    # shortcut!
-    def do_break_eval2(self, insts_target: str, pcode: str, gcode: str,
-                       corr_code="d.pred.label == d.gold.label", pint=0, **kwargs):
-        pcode2 = pcode.replace("d.pred", f"d.preds[{pint}]")
-        corr_code2 = corr_code.replace("d.pred", f"d.preds[{pint}]")
-        return self.do_break_eval(insts_target, pcode2, gcode, corr_code2, **kwargs)
-
-    # real go!
-    def do_break_eval(self, insts_target: str, pcode: str, gcode: str, corr_code="d.pred.label == d.gold.label",
-                      sort_key='-1', truncate_items=100, pdb=False):
-        s, m, vs = self, OtherHelper.get_module(self), self.vars
-        sort_key = int(sort_key)
-        _fp, _fg = compile(pcode, "", "eval"), compile(gcode, "", "eval")
-        _fcorr = compile(corr_code, "", "eval")
-        insts = self.get_and_check_type(insts_target, list)
-        # --
-        res = {}
-        for d in insts:
-            corr = 0
-            # --
-            no_pred = False
-            try:  # use try/except to set this!
-                key_p = eval(_fp)
-            except:
-                no_pred = True
-            # --
-            if not no_pred and d.gold is not None:
-                corr = eval(_fcorr)
-            if not no_pred:
-                key_p = eval(_fp)
-                if key_p not in res:
-                    res[key_p] = F1EvalEntry()
-                res[key_p].record_p(int(corr))
-            if d.gold is not None:
-                key_g = eval(_fg)
-                if key_g not in res:
-                    res[key_g] = F1EvalEntry()
-                res[key_g].record_r(int(corr))
-        # final
-        details = [(k,)+v.details for k,v in res.items()]
-        details = sorted(details, key=(lambda x: x[sort_key]), reverse=True)
-        # --
-        pdf = pd.DataFrame(details)
-        pdf_str = pdf[:int(truncate_items)].to_string()
-        zlog(f"Break-eval {len(insts)} instances by {pcode}/{gcode}:\n{pdf_str}")
-        if pdb:
-            breakpoint()
-        return res
-
     # helpers for breakdown
     def sdist(self, arg: ArgLink, _abs=True, _min=0, _max=10, _buckets=(1,2,4,7,10)):  # surface distance
         z = arg.main.mention.shead_widx - arg.arg.mention.shead_widx

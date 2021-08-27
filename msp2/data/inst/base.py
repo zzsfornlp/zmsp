@@ -9,7 +9,7 @@ __all__ = [
 from typing import Dict, List, Union, Type, Callable
 from copy import deepcopy
 from collections import Counter, defaultdict, namedtuple
-from msp2.utils import JsonSerializable, get_class_id, zwarn, ZIndexer
+from msp2.utils import JsonSerializable, get_class_id, zwarn, ZIndexer, zlog
 
 # How the data is represented?
 # todo(+N): is this really good design or making things complex?
@@ -384,6 +384,15 @@ class DataInstance(JsonSerializable):
             return self.get_rel_path(trg)
         else:  # otherwise return abs path
             return self.get_abs_path()
+
+    # pretty printing
+    def pp(self, method: str, printing=False, **kwargs):
+        from .helper2 import MyPrettyPrinter
+        ff = getattr(MyPrettyPrinter, method)
+        ss = ff(self, **kwargs)
+        if printing:
+            zlog(ss)
+        return ss
 
 # -----
 # data composite (as containers with indexers, plain DataInstance can also be container but cannot index)

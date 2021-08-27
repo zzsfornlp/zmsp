@@ -18,8 +18,10 @@ from typing import Union
 class MathHelper(object):
     #
     @staticmethod
-    def softmax(vals, axis=0):
-        exps = np.exp(vals)
+    def softmax(vals, masks=None, axis=-1):
+        exps = np.exp(vals - vals.max(axis, keepdims=True))
+        if masks is not None:
+            exps *= masks  # 0s are masked out!
         probs = exps / np.sum(exps, axis=axis, keepdims=True)
         return probs
 

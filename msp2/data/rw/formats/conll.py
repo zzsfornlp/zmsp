@@ -141,7 +141,10 @@ class ConllFormator(DataFormator):
         num_col = 0
         if len(all_fields) > 0:
             num_col = len(all_fields[0])
-            assert all(len(z)==num_col for z in all_fields)
+            # assert all(len(z)<=num_col for z in all_fields)
+            for z in all_fields:
+                if len(z) != num_col:
+                    zwarn(f"Line length not match ({len(z)} vs {num_col})")
         # --
         sent = Sent.create()  # make an empty one!!
         # -> read in conll fields
