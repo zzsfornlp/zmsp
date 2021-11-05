@@ -1,12 +1,12 @@
 ### For Using Syntactic Supervision for Cross-lingual SRL
 
-Hi, this describes our implementation for our paper: "On the Benefit of Syntactic Supervision for Cross-lingual Transfer in Semantic Role Labeling".
+Hi, this describes our implementation for our EMNLP-21 paper: "On the Benefit of Syntactic Supervision for Cross-lingual Transfer in Semantic Role Labeling".
 
-Please refer to the paper for more details: [[paper]](TODO) [[bib]](TODO)
+Please refer to the paper for more details: [[paper]](https://aclanthology.org/2021.emnlp-main.503/) [[bib]](https://aclanthology.org/2021.emnlp-main.503.bib)
 
 ### Repo
 
-When we were carrying out our experiments for this work, we used the repo at this commit [`here`](TODO). In later versions of this repo, there may be slight changes (for example, default hyper-parameter change or hyper-parameter name change).
+When we were carrying out our experiments for this work, we used the repo at this commit [`here`](https://github.com/zzsfornlp/zmsp/commit/580412af68d171ae8dd82e19ed39a2bd0a5a7184). In later versions of this repo, there may be slight changes (for example, default hyper-parameter change or hyper-parameter name change).
 
 Clone this repo:
 
