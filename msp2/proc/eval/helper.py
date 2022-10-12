@@ -6,11 +6,12 @@ __all__ = [
     "ItemMatcher", "MatchedPair",
 ]
 
-from typing import List, Callable, Dict
+from typing import List, Callable, Dict, Union
 from collections import defaultdict
 import numpy as np
-from msp2.utils import Constants, DivNumber
+from msp2.utils import Constants, DivNumber, F1EvalEntry
 from msp2.data.inst import Mention
+import pandas as pd
 
 class ItemMatcher:
     # =====
@@ -143,3 +144,51 @@ class MatchedPair:
         res_g = DivNumber(0., 0.) if (self.gold is None) else DivNumber(_matched_score*self.gold_weight, self.gold_weight)
         res_p = DivNumber(0., 0.) if (self.pred is None) else DivNumber(_matched_score*self.pred_weight, self.pred_weight)
         return res_g, res_p
+
+    # --
+    # help function to do breakdowns
+    @staticmethod
+    def breakdown_eval(pairs: List['MatchedPair'], pcode='lambda x: x.label', gcode='lambda y: y.label',
+                       corr_code='lambda x,y: x.label==y.label', sort_key=-3):
+        # get functions
+        functions = [pcode, gcode, corr_code]
+        for ii in range(len(functions)):
+            if isinstance(functions[ii], str):
+                functions[ii] = eval(functions[ii])
+        _fp, _fg, _fc = functions
+        # --
+        res = {}
+        for pp in pairs:
+            corr = 0
+            if pp.pred is not None and pp.gold is not None:
+                corr = int(_fc(pp.pred, pp.gold))
+            if pp.pred is not None:
+                key_p = _fp(pp.pred)
+                if key_p not in res:
+                    res[key_p] = F1EvalEntry()
+                res[key_p].record_p(corr)
+            if pp.gold is not None:
+                key_g = _fg(pp.gold)
+                if key_g not in res:
+                    res[key_g] = F1EvalEntry()
+                res[key_g].record_r(corr)
+        # --
+        # final
+        details = [(k,)+v.details for k,v in res.items()]
+        details = sorted(details, key=(lambda x: x[sort_key]), reverse=True)  # by default, sort by gold count
+        df = pd.DataFrame(details, columns=['type', 'Pc', 'Pa', 'P', 'Rc', 'Ra', 'R', 'F1'])
+        return df
+
+    @staticmethod
+    def df2avg(df, ra_thr: int = 1):
+        # get macro/micro average
+        macro_res = [df[z].mean() for z in ['P', 'R', 'F1']]
+        df2 = df[df['Ra'] >= ra_thr]  # only appearing ones
+        macro2_res = [df2[z].mean() for z in ['P', 'R', 'F1']]
+        micro_entry = F1EvalEntry()
+        micro_entry.record_p(df['Pc'].sum(), df['Pa'].sum())
+        micro_entry.record_r(df['Rc'].sum(), df['Ra'].sum())
+        micro_res = list(micro_entry.prf)
+        # --
+        ret = macro_res, macro2_res, micro_res
+        return [[round(z2, 4) for z2 in z] for z in ret]  # keep 4 digits

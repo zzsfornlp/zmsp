@@ -114,6 +114,10 @@ class RecordNode(TreeNode):
         if par is not None:
             par.add_ch(self)
 
+    @property
+    def ncount(self):
+        return -self.count
+
     @classmethod
     def new_root(cls):
         return cls(None, [])

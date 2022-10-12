@@ -5,7 +5,7 @@
 __all__ = [
     "zopen", "WithWrapper", "zopen_withwrapper",
     "dir_msp2",
-    "zglob", "zglob1",
+    "zglob", "zglob1", "zglob1z",
     "mkdir_p",
 ]
 
@@ -86,6 +86,13 @@ def zglob1(pathname: str, raise_error=False, **kwargs):
     else:
         assert not raise_error
         return pathname  # return pathname by default!
+
+# a special zglob1z (__ as special mark!!)
+def zglob1z(pathname: str, **kwargs):
+    if pathname.startswith("__"):  # note: special semantics!!
+        pathname = pathname[2:]
+        kwargs['check_iter'] = 10
+    return zglob1(pathname, **kwargs)
 
 # mkdir -p path
 def mkdir_p(path: str, raise_error=False):

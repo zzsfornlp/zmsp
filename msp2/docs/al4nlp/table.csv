@@ -1,0 +1,349 @@
+Year,Title,Source,Link,Output,Task,Query,Structured,Cost,Model,Learning,Start,Stop,Others
+2022,Bigger Data or Fairer Data? Augmenting BERT via Active Sampling for Educational Text Classification,ACL,https://aclanthology.org/2022.coling-1.109,Classification,Others,"Uncertainty,Disagreement,Performance_prediction",-,-,-,-,-,-,-
+2022,AcTune: Uncertainty-aware Active Self-Training for Semi-Supervised Active Learning with Pretrained Language Models,ACL,https://aclanthology.org/2022.naacl-main.102,Classification,Classification,Uncertainty,-,-,-,Semi_supervised,-,-,-
+2022,Towards Computationally Feasible Deep Active Learning,ACL,https://aclanthology.org/2022.findings-naacl.90,"Classification,Sequence_labeling","Classification,NER",Uncertainty,-,Wait_time,Model_mismatch,-,-,-,-
+2022,ALLSH: Active Learning Guided by Local Sensitivity and Hardness,ACL,https://aclanthology.org/2022.findings-naacl.99,Classification,Classification,Uncertainty,-,-,-,Semi_supervised,-,-,-
+2022,Make The Most of Prior Data: A Solution for Interactive Text Summarization with Preference Feedback,ACL,https://aclanthology.org/2022.findings-naacl.147,Generation,Others,Others(special),-,-,-,-,-,-,-
+2022,CrudeOilNews: An Annotated Crude Oil News Corpus for Event Extraction,ACL,https://aclanthology.org/2022.lrec-1.49,Complex_structured_prediction,Event,Uncertainty,-,-,-,-,-,-,-
+2022,Investigating Active Learning Sampling Strategies for Extreme Multi Label Text Classification,ACL,https://aclanthology.org/2022.lrec-1.490,Classification,Classification,"Uncertainty,Batch_diversity",-,-,-,-,-,-,-
+2022,FAMIE: A Fast Active Learning Framework for Multilingual Information Extraction,ACL,https://aclanthology.org/2022.naacl-demo.14,Sequence_labeling,"NER,Event","Uncertainty,Diversity",-,Wait_time,Model_mismatch,-,-,-,"Multiple_targets,Tools"
+2022,Teaching Interactively to Learn Emotions in Natural Language,ACL,https://aclanthology.org/2022.hcinlp-1.6,Classification,Others,Uncertainty,-,-,-,-,-,-,-
+2022,Is More Data Better? Re-thinking the Importance of Efficiency in Abusive Language Detection with Transformers-Based Active Learning,ACL,https://aclanthology.org/2022.trac-1.7,Classification,Social,Uncertainty,-,-,-,-,-,-,Data_imbalance
+2022,Adapting Coreference Resolution Models through Active Learning,ACL,https://aclanthology.org/2022.acl-long.519,Complex_structured_prediction,Coreference,Uncertainty,Partial,Measurement,-,Transfer_learning,-,-,-
+2022,Prompt-Based Rule Discovery and Boosting for Interactive Weakly-Supervised Learning,ACL,https://aclanthology.org/2022.acl-long.55,Complex_structured_prediction,"Classification,Relation",Others(special),-,-,-,Weak_supervision,-,-,-
+2022,A Comparison of Strategies for Source-Free Domain Adaptation,ACL,https://aclanthology.org/2022.acl-long.572,"Classification,Sequence_labeling","Classification,Others",Uncertainty,-,-,-,Transfer_learning,-,-,-
+2022,Active Evaluation: Efficient NLG Evaluation with Few Pairwise Comparisons,ACL,https://aclanthology.org/2022.acl-long.600,Classification,Others,"Uncertainty,Disagreement",-,-,-,-,-,-,Beyond_target_labeling
+2022,On Efficiently Acquiring Annotations for Multilingual Models,ACL,https://aclanthology.org/2022.acl-short.9,"Classification,Sequence_labeling,Complex_structured_prediction","Classification,NER,Parsing",Uncertainty,Full,-,-,Transfer_learning,-,-,Multiple_targets
+2022,On the Importance of Effectively Adapting Pretrained Language Models for Active Learning,ACL,https://aclanthology.org/2022.acl-short.93,Classification,Classification,"Uncertainty,Disagreement,Gradient,Batch_diversity",-,-,-,Transfer_learning,-,-,-
+2022,Revisiting Uncertainty-based Query Strategies for Active Learning with Transformers,ACL,https://aclanthology.org/2022.findings-acl.172,Classification,Classification,Uncertainty,-,-,-,-,-,-,-
+2022,Efficient Argument Structure Extraction with Transfer Learning and Active Learning,ACL,https://aclanthology.org/2022.findings-acl.36,Complex_structured_prediction,Discourse,"Uncertainty,Disagreement,Density,Discriminative,Batch_diversity",-,-,-,Transfer_learning,-,-,-
+2021,Supporting Land Reuse of Former Open Pit Mining Sites using Text Classification and Active Learning,ACL,https://aclanthology.org/2021.acl-long.320,Classification,Classification,Uncertainty,-,-,-,-,-,-,-
+2021,Subsequence Based Deep Active Learning for Named Entity Recognition,ACL,https://aclanthology.org/2021.acl-long.332,Sequence_labeling,NER,Uncertainty,Partial,-,-,-,-,-,-
+2021,Mind Your Outliers! Investigating the Negative Impact of Outliers on Active Learning for Visual Question Answering,ACL,https://aclanthology.org/2021.acl-long.564,Classification,Visual_question_answering,"Uncertainty,Disagreement,Batch_diversity",-,-,-,-,-,-,"complex_inputs,AL_in_practice"
+2021,Active Learning for Sequence Tagging with Deep Pre-trained Models and Bayesian Uncertainty Estimates,ACL,https://aclanthology.org/2021.eacl-main.145,Sequence_labeling,NER,"Uncertainty,Disagreement",-,-,Model_mismatch,-,-,-,-
+2021,Active Learning for Neural Entity Alignment,ACL,https://aclanthology.org/2021.emnlp-main.270,Complex_structured_prediction,Others,"Uncertainty,Disagreement,Others(special)",-,-,-,-,-,-,-
+2021,Active Learning by Acquiring Contrastive Examples,ACL,https://aclanthology.org/2021.emnlp-main.51,Classification,Classification,"Uncertainty,Batch_diversity,Hybrid(integrated)",-,-,-,-,-,-,-
+2021,Cartography Active Learning,ACL,https://aclanthology.org/2021.findings-emnlp.36,Classification,Classification,"Performance_prediction,Uncertainty,Disagreement,Discriminative",-,-,-,-,-,-,-
+2021,Active Learning for Rumor Identification on Social Media,ACL,https://aclanthology.org/2021.findings-emnlp.387,Classification,Social,"Uncertainty,Disagreement,Batch_diversity,Hybrid(simple)",-,-,-,Transfer_learning,-,-,-
+2021,Active2 Learning: Actively reducing redundancies in Active Learning methods for Sequence Tagging and Machine Translation,ACL,https://aclanthology.org/2021.naacl-main.159,"Sequence_labeling,Generation","NER,MT","Uncertainty,Disagreement,Batch_diversity,Hybrid(multi_step)",-,-,-,-,-,-,-
+2021,Diversity-Aware Batch Active Learning for Dependency Parsing,ACL,https://aclanthology.org/2021.naacl-main.207,Complex_structured_prediction,Parsing,"Uncertainty,Disagreement,Density,Batch_diversity,Hybrid(integrated)",Partial,-,-,-,-,-,-
+2021,Reducing Confusion in Active Learning for Part-Of-Speech Tagging,ACL,https://aclanthology.org/2021.tacl-1.1,Sequence_labeling,POS,"Uncertainty,Density,Hybrid(multi_step)",Partial,-,-,Transfer_learning,-,-,-
+2021,Paladin: an annotation tool based on active and proactive learning,ACL,https://aclanthology.org/2021.eacl-demos.28,Classification,Classification,Uncertainty,-,-,-,-,-,-,Tools
+2021,ActiveAnno: General-Purpose Document-Level Annotation Tool with Active Learning Integration,ACL,https://aclanthology.org/2021.naacl-demos.12,Classification,Classification,Uncertainty,-,-,-,-,-,-,Tools
+2021,Active learning and negative evidence for language identification,ACL,https://aclanthology.org/2021.dash-1.8,Classification,Others,Uncertainty,Partial,-,-,-,-,-,-
+2021,Active Learning for Argument Strength Estimation,ACL,https://aclanthology.org/2021.insights-1.20,Classification,Discourse,"Uncertainty,Disagreement",-,-,-,-,-,-,AL_in_practice
+2021,Active Curriculum Learning,ACL,https://aclanthology.org/2021.internlp-1.6,Sequence_labeling,NER,"Uncertainty,Others(special)",-,-,-,-,-,-,Related_direction
+2021,Active Learning for Massively Parallel Translation of Constrained Text into Low Resource Languages,ACL,https://aclanthology.org/2021.mtsummit-loresmt.4,Generation,MT,Others,-,-,-,-,-,-,-
+2021,Investigating Active Learning in Interactive Neural Machine Translation,ACL,https://aclanthology.org/2021.mtsummit-research.2,Generation,MT,"Performance_prediction,Uncertainty,Disagreement",-,Directly_reducing_cost,-,-,-,-,-
+2021,Active Learning for Interactive Relation Extraction in a French Newspaper’s Articles,ACL,https://aclanthology.org/2021.ranlp-1.101,Complex_structured_prediction,Relation,Uncertainty,-,-,-,-,-,-,-
+2021,Tuning Deep Active Learning for Semantic Role Labeling,ACL,https://aclanthology.org/2021.iwcs-1.20,Complex_structured_prediction,SRL,"Uncertainty,Disagreement",Full,-,-,-,-,-,-
+2021,Active Learning for Assisted Corpus Construction: A Case Study in Knowledge Discovery from Biomedical Text,ACL,https://aclanthology.org/2021.ranlp-1.26,Complex_structured_prediction,Relation,"Uncertainty,Density,Hybrid(simple)",Full,Directly_reducing_cost,-,-,-,-,-
+2021,Phrase-level Active Learning for Neural Machine Translation,ACL,https://aclanthology.org/2021.wmt-1.117,Generation,MT,"Uncertainty,Density,Discriminative",Partial,-,-,Data_augmentation,-,-,-
+2020,Active Imitation Learning with Noisy Guidance,ACL,https://aclanthology.org/2020.acl-main.189,Sequence_labeling,"NER,POS","Uncertainty,Performance_prediction",Partial,-,-,Weak_supervision,-,-,-
+2020,Camouflaged Chinese Spam Content Detection with Semi-supervised Generative Active Learning,ACL,https://aclanthology.org/2020.acl-main.279,Classification,Classification,Uncertainty,-,-,-,-,-,-,-
+2020,Empowering Active Learning to Jointly Optimize System and User Demands,ACL,https://aclanthology.org/2020.acl-main.390,Classification,Others,"Uncertainty,Others(special)",-,-,-,-,-,-,-
+2020,Active Learning for Coreference Resolution using Discrete Annotation,ACL,https://aclanthology.org/2020.acl-main.738,Complex_structured_prediction,Coreference,"Uncertainty,Disagreement",Partial,Measurement,-,-,-,-,-
+2020,Fine-tuning BERT for Low-Resource Natural Language Understanding via Active Learning,ACL,https://aclanthology.org/2020.coling-main.100,Classification,"Classification,Others","Uncertainty,Disagreement",-,-,-,-,-,-,-
+2020,Pre-trained Language Model Based Active Learning for Sentence Matching,ACL,https://aclanthology.org/2020.coling-main.130,Classification,Others,"Uncertainty,Batch_diversity,Hybrid(multi_step)",-,-,-,-,-,-,-
+2020,A Multitask Active Learning Framework for Natural Language Understanding,ACL,https://aclanthology.org/2020.coling-main.430,Sequence_labeling,NLU,Uncertainty,Full,-,-,-,-,-,Multiple_targets
+2020,ALICE: Active Learning with Contrastive Natural Language Explanations,ACL,https://aclanthology.org/2020.emnlp-main.355,Generation,Others,Others(special),-,-,-,-,-,-,-
+2020,Learning Structured Representations of Entity Names using Active Learning and Weak Supervision,ACL,https://aclanthology.org/2020.emnlp-main.517,Sequence_labeling,Others,"Uncertainty,Density",-,-,-,Weak_supervision,-,-,-
+2020,Textual Data Augmentation for Efficient Active Learning on Tiny Datasets,ACL,https://aclanthology.org/2020.emnlp-main.600,Classification,Classification,"Uncertainty,Discriminative",-,-,-,Data_augmentation,-,-,-
+2020,Cold-start Active Learning through Self-supervised Language Modeling,ACL,https://aclanthology.org/2020.emnlp-main.637,Classification,Classification,"Uncertainty,Batch_diversity,Hybrid(integrated)",-,-,-,-,Seed,-,-
+2020,Active Learning for BERT: An Empirical Study,ACL,https://aclanthology.org/2020.emnlp-main.638,Classification,Classification,"Uncertainty,Disagreement,Gradient,Discriminative,Batch_diversity",-,-,-,-,-,-,Data_imbalance
+2020,SeqMix: Augmenting Active Sequence Labeling via Sequence Mixup,ACL,https://aclanthology.org/2020.emnlp-main.691,Sequence_labeling,"NER,Event","Uncertainty,Disagreement",-,-,-,Data_augmentation,-,-,-
+2020,Active Learning Approaches to Enhancing Neural Machine Translation,ACL,https://aclanthology.org/2020.findings-emnlp.162,Generation,MT,"Uncertainty,Density,Discriminative,Batch_diversity",Full,-,-,Data_augmentation,-,-,-
+2020,On the Importance of Adaptive Data Collection for Extremely Imbalanced Pairwise Tasks,ACL,https://aclanthology.org/2020.findings-emnlp.305,Classification,Others,Uncertainty,-,-,-,-,Seed,-,Data_imbalance
+2020,Active Sentence Learning by Adversarial Uncertainty Sampling in Discrete Space,ACL,https://aclanthology.org/2020.findings-emnlp.441,"Classification,Sequence_labeling","Classification,NER",Uncertainty,-,Wait_time,-,-,-,-,-
+2020,Optimizing Annotation Effort Using Active Learning Strategies: A Sentiment Analysis Case Study in Persian,ACL,https://aclanthology.org/2020.lrec-1.348,Classification,Classification,"Uncertainty,Batch_diversity,Hybrid(multi_step)",-,Wait_time,-,-,-,-,-
+2020,Enhanced Labelling in Active Learning for Coreference Resolution,ACL,https://aclanthology.org/2020.crac-1.12,Complex_structured_prediction,Coreference,Uncertainty,Partial,Measurement,-,-,-,-,-
+2020,Constructing a Korean Named Entity Recognition Dataset for the Financial Domain using Active Learning,ACL,https://aclanthology.org/2020.icon-main.27,Sequence_labeling,NER,Uncertainty,-,-,-,-,-,-,-
+2020,Uncertainty and Traffic-Aware Active Learning for Semantic Parsing,ACL,https://aclanthology.org/2020.intexsempar-1.2,Generation,Others,"Uncertainty,Density",-,-,-,-,-,-,-
+2020,Deep Active Learning for Sequence Labeling Based on Diversity and Uncertainty in Gradient,ACL,https://aclanthology.org/2020.lifelongnlp-1.1,Sequence_labeling,"NER,NLU","Uncertainty,Disagreement,Batch_diversity,Hybrid(integrated)",-,-,-,-,-,-,-
+2020,A Deep Active Learning Covid-19 Relevancy Algorithm to Identify Core Scientific Articles,ACL,https://aclanthology.org/2020.nlpcovid19-2.2,Classification,Classification,Uncertainty,-,-,-,-,-,-,-
+2019,Practical Obstacles to Deploying Active Learning,ACL,https://aclanthology.org/D19-1003,"Classification,Sequence_labeling","Classification,NER","Uncertainty,Disagreement",-,-,Model_mismatch,-,-,-,-
+2019,Sampling Bias in Deep Active Classification: An Empirical Study,ACL,https://aclanthology.org/D19-1417,Classification,Classification,"Uncertainty,Disagreement,Batch_diversity",-,-,-,-,-,-,-
+2019,A Little Annotation does a Lot of Good: A Study in Bootstrapping Low-resource Named Entity Recognizers,ACL,https://aclanthology.org/D19-1520,Sequence_labeling,NER,Uncertainty,Partial,-,-,Transfer_learning,-,-,-
+2019,On the Limits of Learning to Actively Learn Semantic Representations,ACL,https://aclanthology.org/K19-1042,Complex_structured_prediction,Others,Performance_prediction,-,-,-,-,-,-,-
+2019,Active Learning via Membership Query Synthesis for Semi-Supervised Sentence Classification,ACL,https://aclanthology.org/K19-1044,Classification,Classification,Uncertainty,-,-,-,Data_augmentation,-,-,-
+2019,Competence-based Curriculum Learning for Neural Machine Translation,ACL,https://aclanthology.org/N19-1119,Generation,MT,Others,-,-,-,-,-,-,Related_direction
+2019,"Practical, Efficient, and Customizable Active Learning for Named Entity Recognition in the Digital Humanities",ACL,https://aclanthology.org/N19-1231,Sequence_labeling,NER,"Density,Discriminative",-,-,-,-,-,-,-
+2019,Active Learning for New Domains in Natural Language Understanding,ACL,https://aclanthology.org/N19-2012,"Classification,Sequence_labeling",NLU,"Uncertainty,Disagreement",-,-,-,-,-,-,-
+2019,Learning How to Active Learn by Dreaming,ACL,https://aclanthology.org/P19-1401,"Classification,Sequence_labeling","Classification,NER","Uncertainty,Performance_prediction,Discriminative",-,-,-,Transfer_learning,-,-,-
+2019,Low-resource Deep Entity Resolution with Transfer and Active Learning,ACL,https://aclanthology.org/P19-1586,Complex_structured_prediction,Others,Uncertainty,-,-,-,"Semi_supervised,Transfer_learning",-,-,Data_imbalance
+2019,AlpacaTag: An Active Learning-based Crowd Annotation Framework for Sequence Tagging,ACL,https://aclanthology.org/P19-3010,Sequence_labeling,NER,Uncertainty,-,-,-,-,-,-,"Tools,Crowdsourcing"
+2019,MedCATTrainer: A Biomedical Free Text Annotation Interface with Active Learning and Research Use Case Specific Customisation,ACL,https://aclanthology.org/D19-3024,Sequence_labeling,"NER,Others",Uncertainty,-,-,-,-,-,-,Tools
+2019,Active Learning for Financial Investment Reports,ACL,https://aclanthology.org/W19-6404,Classification,Classification,Uncertainty,-,-,-,-,-,-,-
+2019,Empirical Evaluation of Active Learning Techniques for Neural MT,ACL,https://aclanthology.org/D19-6110,Generation,MT,"Uncertainty,Density,Discriminative,Others(special)",-,-,-,-,-,-,-
+2019,Turning silver into gold: error-focused corpus reannotation with active learning,ACL,https://aclanthology.org/R19-1088,"Classification,Sequence_labeling","Classification,POS",Density,-,-,-,-,-,-,-
+2018,Exploiting Structure in Representation of Named Entities using Active Learning,ACL,https://aclanthology.org/C18-1058,Sequence_labeling,NER,"Uncertainty,Density,Hybrid(simple)",-,-,-,-,-,-,-
+2018,Using active learning to expand training data for implicit discourse relation recognition,ACL,https://aclanthology.org/D18-1079,Classification,Discourse,Uncertainty,-,-,-,Weak_supervision,-,-,-
+2018,Learning a Policy for Opportunistic Active Learning,ACL,https://aclanthology.org/D18-1165,Complex_structured_prediction,Others,Others(special),-,-,-,-,-,-,-
+2018,Deep Bayesian Active Learning for Natural Language Processing: Results of a Large-Scale Empirical Study,ACL,https://aclanthology.org/D18-1318,"Classification,Sequence_labeling","Classification,NER,SRL","Uncertainty,Disagreement",-,-,-,-,-,-,-
+2018,APRIL: Interactively Learning to Summarise by Combining Active Preference Learning and Reinforcement Learning,ACL,https://aclanthology.org/D18-1445,Sequence_labeling,Others,Uncertainty,-,-,-,-,-,-,-
+2018,Active Learning for Interactive Neural Machine Translation of Data Streams,ACL,https://aclanthology.org/K18-1015,Generation,MT,"Uncertainty,Disagreement",-,Directly_reducing_cost,-,-,-,-,-
+2018,Learning to Actively Learn Neural Machine Translation,ACL,https://aclanthology.org/K18-1033,Generation,MT,"Uncertainty,Performance_prediction",-,-,-,Transfer_learning,-,-,-
+2018,Learning How to Actively Learn: A Deep Imitation Learning Approach,ACL,https://aclanthology.org/P18-1174,"Classification,Sequence_labeling","Classification,NER","Uncertainty,Discriminative,Performance_prediction",-,-,-,Transfer_learning,-,-,-
+2018,Active learning for deep semantic parsing,ACL,https://aclanthology.org/P18-2008,Generation,Others,"Uncertainty,Others(special)",-,-,-,-,-,-,-
+2018,Active DOP: A constituency treebank annotation tool with online learning,ACL,https://aclanthology.org/C18-2009,Complex_structured_prediction,Parsing,Others,-,-,-,-,-,-,Tools
+2018,APLenty: annotation tool for creating high-quality datasets using active and proactive learning,ACL,https://aclanthology.org/D18-2019,Sequence_labeling,Others,Uncertainty,-,-,-,-,-,-,Tools
+2018,Multi-Task Active Learning for Neural Semantic Role Labeling on Low Resource Conversational Corpus,ACL,https://aclanthology.org/W18-3406,Sequence_labeling,SRL,Uncertainty,-,-,-,-,-,-,Multiple_targets
+2018,Cost-Sensitive Active Learning for Dialogue State Tracking,ACL,https://aclanthology.org/W18-5022,Classification,Others,"Uncertainty,Discriminative,Hybrid(simple)",-,Cost_sensitive,-,-,-,-,-
+2017,Learning how to Active Learn: A Deep Reinforcement Learning Approach,ACL,https://aclanthology.org/D17-1063,Sequence_labeling,NER,"Uncertainty,Performance_prediction",-,-,-,Transfer_learning,-,-,-
+2017,Active Sentiment Domain Adaptation,ACL,https://aclanthology.org/P17-1156,Classification,Others,"Uncertainty,Density,Hybrid(simple),Hybrid(dynamic)",-,-,-,Transfer_learning,Seed,-,-
+2017,Model Transfer for Tagging Low-resource Languages using a Bilingual Dictionary,ACL,https://aclanthology.org/P17-2093,Sequence_labeling,POS,Uncertainty,-,-,-,Transfer_learning,-,-,-
+2017,Deep Active Learning for Dialogue Generation,ACL,https://aclanthology.org/S17-1008,Generation,Others,Others(special),-,Directly_reducing_cost,-,-,-,-,-
+2017,Proactive Learning for Named Entity Recognition,ACL,https://aclanthology.org/W17-2314,Sequence_labeling,NER,"Uncertainty,Density,Hybrid(simple)",-,Cost_sensitive,-,-,-,-,-
+2017,Deep Active Learning for Named Entity Recognition,ACL,https://aclanthology.org/W17-2630,Sequence_labeling,NER,"Uncertainty,Disagreement",Full,-,-,-,-,-,-
+2016,Solving the AL Chicken-and-Egg Corpus and Model Problem: Model-free Active Learning for Phenomena-driven Corpus Construction,ACL,https://aclanthology.org/L16-1697,Others,Others,Others(special),-,-,-,-,-,-,-
+2016,"Selecting Syntactic, Non-redundant Segments in Active Learning for Machine Translation",ACL,https://aclanthology.org/N16-1003,Generation,MT,Discriminative,Partial,-,-,-,-,-,-
+2016,Active Learning for Dependency Parsing with Partial Annotation,ACL,https://aclanthology.org/P16-1033,Complex_structured_prediction,Parsing,Uncertainty,Partial,Measurement,-,-,-,-,-
+2016,ALTO: Active Learning with Topic Overviews for Speeding Label Induction and Document Labeling,ACL,https://aclanthology.org/P16-1110,Classification,Classification,"Uncertainty,Density",-,-,-,-,-,-,-
+2016,On-line Active Reward Learning for Policy Optimisation in Spoken Dialogue Systems,ACL,https://aclanthology.org/P16-1230,Classification,Others,Uncertainty,-,-,-,-,-,-,-
+2016,TextPro-AL: An Active Learning Platform for Flexible and Efficient Production of Training Data for NLP Tasks,ACL,https://aclanthology.org/C16-2028,Others,Others,Others,-,-,-,-,-,-,Tools
+2016,SteM at SemEval-2016 Task 4: Applying Active Learning to Improve Sentiment Classification,ACL,https://aclanthology.org/S16-1007,Classification,Classification,Uncertainty,-,-,-,-,-,-,-
+2016,The Benefits of Word Embeddings Features for Active Learning in Clinical Information Extraction,ACL,https://aclanthology.org/U16-1003,Sequence_labeling,NER,"Uncertainty,Density,Discriminative",-,-,-,-,-,-,-
+2016,Investigating Active Learning for Short-Answer Scoring,ACL,https://aclanthology.org/W16-0535,Classification,Others,"Uncertainty,Density,Discriminative",-,-,-,-,Seed,-,Data_imbalance
+2016,Active learning for detection of stance components,ACL,https://aclanthology.org/W16-4306,Classification,Classification,Uncertainty,-,-,-,-,-,-,-
+2015,Active Learning with Rationales for Text Classification,ACL,https://aclanthology.org/N15-1047,Classification,Classification,Uncertainty,-,-,-,-,-,-,-
+2015,Judging the Quality of Automatically Generated Gap-fill Question using Active Learning,ACL,https://aclanthology.org/W15-0623,Classification,Others,"Uncertainty,Disagreement",-,-,-,-,-,-,-
+2015,An Analytic and Empirical Evaluation of Return-on-Investment-Based Active Learning,ACL,https://aclanthology.org/W15-1602,Sequence_labeling,POS,Uncertainty,-,-,-,-,-,-,-
+2015,Active learning for sense annotation,ACL,https://aclanthology.org/W15-1831,Sequence_labeling,WSD,Uncertainty,-,-,-,-,-,-,-
+2015,Experiments on Active Learning for Croatian Word Sense Disambiguation,ACL,https://aclanthology.org/W15-5309,Classification,WSD,Uncertainty,-,-,-,-,-,-,-
+2015,Improving Event Detection with Active Learning,ACL,https://aclanthology.org/R15-1010,Classification,Event,Discriminative,-,-,-,-,-,-,-
+2015,Combining Active Learning and Partial Annotation for Domain Adaptation of a Japanese Dependency Parser,ACL,https://aclanthology.org/W15-2202,Complex_structured_prediction,Parsing,Uncertainty,Partial,Measurement,-,Transfer_learning,-,-,-
+2014,Active Learning in Noisy Conditions for Spoken Language Understanding,ACL,https://aclanthology.org/C14-1102,Sequence_labeling,Others,"Uncertainty,Disagreement,Gradient,Density,Hybrid(simple),Hybrid(multi_step)",-,-,-,-,-,-,-
+2014,An Experimental Comparison of Active Learning Strategies for Partially Labeled Sequences,ACL,https://aclanthology.org/D14-1097,Sequence_labeling,"POS,NER,Others",Uncertainty,Partial,-,-,-,-,-,-
+2014,Formalizing Word Sampling for Vocabulary Prediction as Graph-based Active Learning,ACL,https://aclanthology.org/D14-1143,Classification,Others,Others(special),-,-,-,-,-,-,-
+2014,Active Learning for Post-Editing Based Incrementally Retrained MT,ACL,https://aclanthology.org/E14-4036,Generation,MT,"Discriminative,Batch_diversity",-,Directly_reducing_cost,-,-,-,-,-
+2014,A Quality-based Active Sample Selection Strategy for Statistical Machine Translation,ACL,https://aclanthology.org/L14-1519,Generation,MT,Performance_prediction,-,-,-,-,-,-,-
+2014,Bilingual Active Learning for Relation Classification via Pseudo Parallel Corpora,ACL,https://aclanthology.org/P14-1055,Complex_structured_prediction,Relation,"Uncertainty,Disagreement",-,-,-,Transfer_learning,-,-,Multiple_targets
+2014,Active Learning with Efficient Feature Weighting Methods for Improving Data Quality and Classification Accuracy,ACL,https://aclanthology.org/P14-1104,Classification,Others,Uncertainty,-,-,-,-,-,-,Crowdsourcing
+2014,Integrating online and active learning in a computer-assisted translation workbench,ACL,https://aclanthology.org/2014.amta-workshop.1,Generation,MT,"Uncertainty,Discriminative",-,-,-,-,-,-,-
+2014,Confidence-based Active Learning Methods for Machine Translation,ACL,https://aclanthology.org/W14-0312,Generation,MT,Performance_prediction,-,-,-,-,-,-,-
+2014,Domain Adaptation with Active Learning for Coreference Resolution,ACL,https://aclanthology.org/W14-1104,Complex_structured_prediction,Coreference,Uncertainty,-,-,-,Transfer_learning,-,-,-
+2014,Active Learning with Constrained Topic Model,ACL,https://aclanthology.org/W14-3104,Complex_structured_prediction,Others,Uncertainty,-,-,-,-,-,-,-
+2014,Design of an Active Learning System with Human Correction for Content Analysis,ACL,https://aclanthology.org/W14-3109,Classification,Classification,Uncertainty,-,-,-,-,-,-,-
+2014,Structuring Operative Notes using Active Learning,ACL,https://aclanthology.org/W14-3410,Classification,Event,"Uncertainty,Discriminative",-,-,-,-,-,-,-
+2013,An Efficient Active Learning Framework for New Relation Types,ACL,https://aclanthology.org/I13-1081,Complex_structured_prediction,Relation,"Uncertainty,Disagreement",-,-,-,Semi_supervised,Seed,-,-
+2013,Reducing Annotation Effort for Quality Estimation via Active Learning,ACL,https://aclanthology.org/P13-2097,Classification,Others,"Disagreement,Density,Hybrid(simple)",-,-,-,-,-,-,-
+2013,Towards the Supervised Machine Translation: Real Word Alignments and Translations in a Multi-task Active Learning process,ACL,https://aclanthology.org/2013.mtsummit-posters.6,"Complex_structured_prediction,Generation","Word_alignment,MT","Uncertainty,Density,Hybrid(simple)",Full,-,-,-,-,-,Multiple_targets
+2013,Active Learning for Phenotyping Tasks,ACL,https://aclanthology.org/W13-5101,Classification,Classification,Uncertainty,-,-,-,-,-,-,-
+2013,Annotating named entities in clinical text by combining pre-annotation and active learning,ACL,https://aclanthology.org/P13-3011,Sequence_labeling,NER,"Uncertainty,Others(special)",-,Directly_reducing_cost,-,-,-,-,-
+2013,Online Active Learning for Cost Sensitive Domain Adaptation,ACL,https://aclanthology.org/W13-3501,Classification,Classification,"Uncertainty,Disagreement",-,-,-,Transfer_learning,-,-,Multiple_targets
+2013,Analysis of Stopping Active Learning based on Stabilizing Predictions,ACL,https://aclanthology.org/W13-3502,Others,Others,Others,-,-,-,-,-,Stop,-
+2013,Active Learning for Dependency Parsing by A Committee of Parsers,ACL,https://aclanthology.org/W13-5711,Complex_structured_prediction,Parsing,Disagreement,Partial,-,-,Semi_supervised,-,-,-
+2012,Active Learning for Chinese Word Segmentation,ACL,https://aclanthology.org/C12-2067,Sequence_labeling,Segmentation,Uncertainty,Partial,-,-,-,-,-,-
+2012,Active Learning for Imbalanced Sentiment Classification,ACL,https://aclanthology.org/D12-1013,Classification,Classification,"Uncertainty,Others(special)",-,-,-,-,-,-,Data_imbalance
+2012,Active learning for interactive machine translation,ACL,https://aclanthology.org/E12-1025,Generation,MT,"Uncertainty,Discriminative",-,Directly_reducing_cost,-,-,-,-,-
+2012,Active Learning for Coreference Resolution,ACL,https://aclanthology.org/N12-1055,Complex_structured_prediction,Coreference,Disagreement,Partial,-,-,-,-,-,-
+2012,Active Learning and the Irish Treebank,ACL,https://aclanthology.org/U12-1005,Complex_structured_prediction,Parsing,Disagreement,-,Measurement,-,-,-,-,-
+2012,Active Learning for Coreference Resolution,ACL,https://aclanthology.org/W12-2409,Complex_structured_prediction,Coreference,Uncertainty,Partial,-,-,-,-,-,-
+2012,Exploring Label Dependency in Active Learning for Phenotype Mapping,ACL,https://aclanthology.org/W12-2418,Complex_structured_prediction,Others,Disagreement,-,-,-,-,-,-,-
+2012,Active Learning with Transfer Learning,ACL,https://aclanthology.org/W12-3303,Classification,Classification,Uncertainty,-,-,-,Transfer_learning,-,-,-
+2011,A Non-negative Matrix Factorization Based Approach for Active Dual Supervision from Document and Word Labels,ACL,https://aclanthology.org/D11-1088,Classification,Classification,Others(special),-,-,-,-,-,-,-
+2011,Active Learning with Amazon Mechanical Turk,ACL,https://aclanthology.org/D11-1143,"Classification,Sequence_labeling","Classification,NER",Uncertainty,-,-,-,-,-,-,Crowdsourcing
+2011,"Active Learning Strategies for Support Vector Machines, Application to Temporal Relation Classification",ACL,https://aclanthology.org/I11-1007,Classification,Relation,"Uncertainty,Density,Batch_diversity,Hybrid(simple),Hybrid(multi_step)",-,-,-,-,-,-,-
+2011,Enhancing Active Learning for Semantic Role Labeling via Compressed Dependency Trees,ACL,https://aclanthology.org/I11-1021,Complex_structured_prediction,SRL,"Uncertainty,Density,Hybrid(simple)",-,-,-,-,-,-,-
+2011,Evaluating the Impact of Coder Errors on Active Learning,ACL,https://aclanthology.org/P11-1005,Classification,WSD,Uncertainty,-,-,-,-,-,-,-
+2011,Good Seed Makes a Good Crop: Accelerating Active Learning Using Language Modeling,ACL,https://aclanthology.org/P11-2002,Classification,WSD,Uncertainty,-,-,-,-,Seed,-,Data_imbalance
+2011,"Pointwise Prediction for Robust, Adaptable Japanese Morphological Analysis",ACL,https://aclanthology.org/P11-2093,Sequence_labeling,Segmentation,Uncertainty,Partial,-,-,Transfer_learning,-,-,-
+2011,Multi-Strategy Approaches to Active Learning for Statistical Machine Translation,ACL,https://aclanthology.org/2011.mtsummit-papers.12,Generation,MT,"Density,Discriminative,Hybrid(dynamic)",-,-,-,-,-,-,-
+2011,Enlarging Monolingual Dictionaries for Machine Translation with Active Learning and Non-Expert Users,ACL,https://aclanthology.org/R11-1047,Complex_structured_prediction,Others,Others(special),-,-,-,-,-,-,-
+2011,Assessing Benefit from Feature Feedback in Active Learning for Text Classification,ACL,https://aclanthology.org/W11-0313,Classification,Classification,Uncertainty,-,-,-,-,-,-,-
+2011,Active Learning with Multiple Annotations for Comparable Data Classification Task,ACL,https://aclanthology.org/W11-1210,Complex_structured_prediction,Others,Uncertainty,-,-,-,-,-,-,Multiple_targets
+2011,Active Learning for Dependency Parsing Using Partially Annotated Sentences,ACL,https://aclanthology.org/W11-2917,Complex_structured_prediction,Parsing,Uncertainty,Partial,-,-,-,-,-,-
+2010,Bringing Active Learning to Life,ACL,https://aclanthology.org/C10-1107,Classification,WSD,Uncertainty,-,-,-,-,-,-,"AL_in_practice,Data_imbalance"
+2010,A Comparison of Models for Cost-Sensitive Active Learning,ACL,https://aclanthology.org/C10-2143,Sequence_labeling,NER,Uncertainty,-,Cost_sensitive,-,-,-,-,-
+2010,Active Deep Networks for Semi-Supervised Sentiment Classification,ACL,https://aclanthology.org/C10-2173,Classification,Classification,Uncertainty,-,-,-,Semi_supervised,-,-,-
+2010,Discriminative Sample Selection for Statistical Machine Translation,ACL,https://aclanthology.org/D10-1061,Generation,MT,"Performance_prediction,Batch_diversity",-,-,-,-,-,-,-
+2010,Active Learning and Crowd-Sourcing for Machine Translation,ACL,https://aclanthology.org/L10-1165,Generation,MT,"Density,Discriminative",-,-,-,-,-,-,Crowdsourcing
+2010,Active Learning for Building a Corpus of Questions for Parsing,ACL,https://aclanthology.org/L10-1447,Complex_structured_prediction,Parsing,Uncertainty,Full,-,-,-,-,-,-
+2010,Using Smaller Constituents Rather Than Sentences in Active Learning for Japanese Dependency Parsing,ACL,https://aclanthology.org/P10-1037,Complex_structured_prediction,Parsing,Uncertainty,Partial,-,-,-,-,-,-
+2010,Bucking the Trend: Large-Scale Cost-Focused Active Learning for Statistical Machine Translation,ACL,https://aclanthology.org/P10-1088,Generation,MT,Discriminative,Partial,Measurement,-,-,AL_stage,Stop,-
+2010,Phrase-Based Statistical Language Generation Using Graphical Models and Active Learning,ACL,https://aclanthology.org/P10-1157,Generation,Others,Uncertainty,-,-,-,-,-,-,-
+2010,Active Learning-Based Elicitation for Semi-Supervised Word Alignment,ACL,https://aclanthology.org/P10-2067,Complex_structured_prediction,Word_alignment,"Uncertainty,Disagreement",Partial,-,-,-,-,-,-
+2010,An Active Learning Approach to Finding Related Terms,ACL,https://aclanthology.org/P10-2068,Classification,Others,Others,-,-,-,-,-,-,-
+2010,Active Learning for Constrained Dirichlet Process Mixture Models,ACL,https://aclanthology.org/W10-2809,Complex_structured_prediction,Others,Uncertainty,-,-,-,-,-,-,-
+2010,Active Learning Based Corpus Annotation,ACL,https://aclanthology.org/W10-4121,Sequence_labeling,Others,Uncertainty,-,-,-,-,-,-,-
+2010,Using Variance as a Stopping Criterion for Active Learning of Frame Assignment,ACL,https://aclanthology.org/W10-0101,Classification,Others,Uncertainty,-,-,-,-,-,Stop,-
+2010,Active Semi-Supervised Learning for Improving Word Alignment,ACL,https://aclanthology.org/W10-0102,Complex_structured_prediction,Word_alignment,"Uncertainty,Disagreement",Partial,-,-,Semi_supervised,-,-,-
+2010,D-Confidence: An Active Learning Strategy which Efficiently Identifies Small Classes,ACL,https://aclanthology.org/W10-0103,Classification,Classification,"Uncertainty,Discriminative",-,-,-,-,-,-,Data_imbalance
+2010,Domain Adaptation meets Active Learning,ACL,https://aclanthology.org/W10-0104,Classification,Classification,"Uncertainty,Discriminative",-,-,-,Transfer_learning,-,-,-
+2010,Parallel Active Learning: Eliminating Wait Time with Minimal Staleness,ACL,https://aclanthology.org/W10-0105,Sequence_labeling,POS,Uncertainty,-,Wait_time,-,-,-,-,-
+2010,A Semi-Supervised Batch-Mode Active Learning Strategy for Improved Statistical Machine Translation,ACL,https://aclanthology.org/W10-2916,Generation,MT,"Uncertainty,Batch_diversity,Performance_prediction",-,-,-,-,-,-,-
+2009,Active Learning by Labeling Features,ACL,https://aclanthology.org/D09-1009,Sequence_labeling,NER,Uncertainty,-,-,-,-,-,-,-
+2009,How well does active learning actually work? Time-based evaluation of cost-reduction strategies for language documentation,ACL,https://aclanthology.org/D09-1031,Sequence_labeling,"Others,POS",Uncertainty,-,"Measurement,Cost_sensitive",-,-,-,-,-
+2009,Active Learning for Statistical Phrase-based Machine Translation,ACL,https://aclanthology.org/N09-1047,Generation,MT,"Uncertainty,Density,Discriminative,Performance_prediction",-,-,-,-,-,-,-
+2009,Taking into Account the Differences between Actively and Passively Acquired Data: The Case of Active Learning with Support Vector Machines for Imbalanced Datasets,ACL,https://aclanthology.org/N09-2035,Classification,"Classification,Relation",Uncertainty,-,-,-,-,-,-,Data_imbalance
+2009,Active Zipfian Sampling for Statistical Parser Training,ACL,https://aclanthology.org/N09-2063,Complex_structured_prediction,Parsing,Others(special),-,-,-,-,-,-,-
+2009,Active Learning for Multilingual Statistical Machine Translation,ACL,https://aclanthology.org/P09-1021,Generation,MT,Others(special),-,-,-,-,-,-,Multiple_targets
+2009,"Mine the Easy, Classify the Hard: A Semi-Supervised Approach to Automatic Sentiment Classification",ACL,https://aclanthology.org/P09-1079,Classification,Classification,Uncertainty,-,-,-,Semi_supervised,Seed,-,-
+2009,Semi-Supervised Active Learning for Sequence Labeling,ACL,https://aclanthology.org/P09-1117,Sequence_labeling,NER,Uncertainty,Partial,-,-,Semi_supervised,-,-,-
+2009,A Combination of Active Learning and Semi-supervised Learning Starting with Positive and Unlabeled Examples for Word Sense Disambiguation: An Empirical Study on Japanese Web Search Query,ACL,https://aclanthology.org/P09-2016,Classification,WSD,Uncertainty,-,-,-,Semi_supervised,-,-,-
+2009,Prototype-based Active Learning for Lemmatization,ACL,https://aclanthology.org/R09-1013,Classification,Others,Disagreement,-,-,-,-,-,-,-
+2009,Active Learning of Extractive Reference Summaries for Lecture Speech Summarization,ACL,https://aclanthology.org/W09-3105,Sequence_labeling,Others,Others(special),-,-,-,-,-,-,-
+2009,Sample Selection for Statistical Parsers: Cognitively Driven Algorithms and Evaluation Measures,ACL,https://aclanthology.org/W09-1103,Complex_structured_prediction,Parsing,Others(special),-,Measurement,-,-,-,-,-
+2009,A Method for Stopping Active Learning Based on Stabilizing Predictions and the Need for User-Adjustable Stopping,ACL,https://aclanthology.org/W09-1107,"Classification,Sequence_labeling","Classification,NER",Uncertainty,-,-,-,-,-,Stop,-
+2009,An Intrinsic Stopping Criterion for Committee-Based Active Learning,ACL,https://aclanthology.org/W09-1118,Sequence_labeling,NER,Disagreement,-,-,-,-,-,Stop,-
+2009,Active Learning for Anaphora Resolution,ACL,https://aclanthology.org/W09-1901,Complex_structured_prediction,Coreference,Uncertainty,Partial,-,-,-,-,-,-
+2009,On Proper Unit Selection in Active Learning: Co-Selection Effects for Named Entity Recognition,ACL,https://aclanthology.org/W09-1902,Sequence_labeling,NER,Uncertainty,Partial,-,-,-,Seed,-,Data_imbalance
+2009,Estimating Annotation Cost for Active Learning in a Multi-Annotator Environment,ACL,https://aclanthology.org/W09-1903,Classification,Classification,Others,-,Measurement,-,-,-,-,-
+2009,Data Quality from Crowdsourcing: A Study of Annotation Selection Criteria,ACL,https://aclanthology.org/W09-1904,Classification,Classification,Others,-,-,-,-,-,-,Crowdsourcing
+2009,A Web Survey on the Use of Active Learning to Support Annotation of Text Data,ACL,https://aclanthology.org/W09-1906,Others,Others,Others,-,-,-,-,-,-,-
+2009,Active Dual Supervision: Reducing the Cost of Annotating Examples and Features,ACL,https://aclanthology.org/W09-1907,Classification,Classification,Uncertainty,-,-,-,-,-,-,-
+2009,Proactive Learning for Building Machine Translation Systems for Minority Languages,ACL,https://aclanthology.org/W09-1908,Generation,MT,Others,-,-,-,-,-,-,-
+2009,Active Learning in Example-Based Machine Translation,ACL,https://aclanthology.org/W09-4633,Generation,MT,"Density,Others(special)",-,-,-,-,-,-,-
+2008,Stopping Criteria for Active Learning of Named Entity Recognition,ACL,https://aclanthology.org/C08-1059,Classification,NER,Uncertainty,-,-,-,-,-,Stop,-
+2008,Multi-Criteria-Based Strategy to Stop Active Learning for Data Annotation,ACL,https://aclanthology.org/C08-1142,Classification,"Classification,WSD",Uncertainty,-,-,-,-,-,Stop,-
+2008,Active Learning with Sampling by Uncertainty and Density for Word Sense Disambiguation and Text Classification,ACL,https://aclanthology.org/C08-1143,Classification,"Classification,WSD","Uncertainty,Density,Hybrid(simple)",-,-,-,-,Seed,-,-
+2008,An Analysis of Active Learning Strategies for Sequence Labeling Tasks,ACL,https://aclanthology.org/D08-1112,Sequence_labeling,NER,"Uncertainty,Disagreement,Gradient,Density,Hybrid(simple)",Full,-,-,-,-,-,-
+2008,Multi-Task Active Learning for Linguistic Annotations,ACL,https://aclanthology.org/P08-1098,"Sequence_labeling,Complex_structured_prediction","NER,Parsing",Disagreement,-,-,-,-,-,-,Multiple_targets
+2008,Active Sample Selection for Named Entity Transliteration,ACL,https://aclanthology.org/P08-2014,Complex_structured_prediction,Others,Others(special),-,-,-,-,-,-,-
+2008,Assessing the Costs of Sampling Methods in Active Learning for Annotation,ACL,https://aclanthology.org/P08-2017,Sequence_labeling,POS,"Uncertainty,Disagreement",-,Measurement,-,-,-,-,-
+2008,Active Learning with Confidence,ACL,https://aclanthology.org/P08-2059,Classification,Classification,Uncertainty,-,-,-,-,-,-,-
+2008,Active Annotation in the LUNA Italian Corpus of Spontaneous Dialogues,ACL,https://aclanthology.org/L08-1494,Sequence_labeling,Others,Uncertainty,-,-,-,-,-,-,-
+2008,Rapidly Deploying Grammar-Based Speech Applications with Active Learning and Back-off Grammars,ACL,https://aclanthology.org/W08-0108,Complex_structured_prediction,Others,Others(special),-,-,-,-,-,-,-
+2008,Learning a Stopping Criterion for Active Learning for Word Sense Disambiguation and Text Classification,ACL,https://aclanthology.org/I08-1048,Classification,"Classification,WSD",Uncertainty,-,-,-,-,-,Stop,-
+2008,Approximating Learning Curves for Active-Learning-Driven Annotation,ACL,https://aclanthology.org/L08-1208,Sequence_labeling,NER,Disagreement,-,-,-,-,-,Stop,-
+2008,Assessing the Costs of Machine-Assisted Corpus Annotation through a User Study,ACL,https://aclanthology.org/L08-1367,Sequence_labeling,POS,Others,-,"Measurement,Directly_reducing_cost",-,-,-,-,-
+2007,An Approach to Text Corpus Construction which Cuts Annotation Costs and Maintains Reusability of Annotated Data,ACL,https://aclanthology.org/D07-1051,Sequence_labeling,NER,Disagreement,-,-,Model_mismatch,-,-,Stop,-
+2007,Active Learning for Word Sense Disambiguation with Methods for Addressing the Class Imbalance Problem,ACL,https://aclanthology.org/D07-1082,Classification,WSD,Uncertainty,-,-,-,-,-,Stop,Data_imbalance
+2007,Domain Adaptation with Active Learning for Word Sense Disambiguation,ACL,https://aclanthology.org/P07-1007,Classification,WSD,Uncertainty,-,-,-,Transfer_learning,-,-,-
+2007,Active Learning for the Identification of Nonliteral Language,ACL,https://aclanthology.org/W07-0104,Classification,WSD,Uncertainty,-,-,-,-,-,-,-
+2007,Active Learning for Part-of-Speech Tagging: Accelerating Corpus Annotation,ACL,https://aclanthology.org/W07-1516,Sequence_labeling,POS,"Uncertainty,Disagreement",Full,-,-,-,-,-,-
+2006,An Empirical Study of the Behavior of Active Learning for Word Sense Disambiguation,ACL,https://aclanthology.org/N06-1016,Classification,WSD,Uncertainty,-,-,-,-,-,-,-
+2006,MMR-based Active Machine Learning for Bio Named Entity Recognition,ACL,https://aclanthology.org/N06-2018,Sequence_labeling,NER,"Uncertainty,Discriminative,Hybrid(simple)",Full,-,-,-,-,-,-
+2006,Active Annotation,ACL,https://aclanthology.org/W06-2209,Sequence_labeling,NER,Uncertainty,-,Directly_reducing_cost,-,-,Seed,-,-
+2005,Low cost portability for statistical machine transla- tion based in N-gram frequency and TF-IDF,ACL,https://aclanthology.org/2005.iwslt-1.7,Generation,MT,Discriminative,-,-,-,-,-,-,-
+2005,Investigating the Effects of Selective Sampling on the Annotation Task,ACL,https://aclanthology.org/W05-0619,Sequence_labeling,NER,Disagreement,-,Measurement,-,-,-,-,-
+2004,Sample Selection for Statistical Parsing,ACL,https://aclanthology.org/J04-3001,Complex_structured_prediction,Parsing,Uncertainty,Full,-,-,-,-,-,-
+2004,Ensemble-based Active Learning for Parse Selection,ACL,https://aclanthology.org/N04-1012,Complex_structured_prediction,Parsing,"Uncertainty,Disagreement",-,-,-,-,-,-,-
+2004,Multi-Criteria-based Active Learning for Named Entity Recognition,ACL,https://aclanthology.org/P04-1075,Sequence_labeling,NER,"Uncertainty,Density,Batch_diversity,Hybrid(simple),Hybrid(multi_step)",Partial,-,-,-,-,-,-
+2004,Active Learning and the Total Cost of Annotation,ACL,https://aclanthology.org/W04-3202,Complex_structured_prediction,Parsing,Uncertainty,-,Directly_reducing_cost,Model_mismatch,-,-,-,-
+2003,Active Learning for Classifying Phone Sequences from Unsupervised Phonotactic Models,ACL,https://aclanthology.org/N03-2007,Classification,Others,Uncertainty,-,-,-,-,-,-,-
+2003,Active learning for HPSG parse selection,ACL,https://aclanthology.org/W03-0403,Complex_structured_prediction,Parsing,"Uncertainty,Disagreement",-,-,Model_mismatch,-,-,-,-
+2002,Active Learning for Statistical Natural Language Parsing,ACL,https://aclanthology.org/P02-1016,Complex_structured_prediction,Parsing,"Uncertainty,Batch_diversity,Hybrid(multi_step)",Full,-,-,-,-,-,-
+2002,An Empirical Study of Active Learning with Support Vector Machines forJapanese Word Segmentation,ACL,https://aclanthology.org/P02-1064,Sequence_labeling,Segmentation,Uncertainty,Partial,-,-,-,-,-,-
+2001,Scaling to Very Very Large Corpora for Natural Language Disambiguation,ACL,https://aclanthology.org/P01-1005,Classification,Others,Disagreement,-,-,-,-,-,-,-
+2000,Rule Writing or Annotation: Cost-efficient Resource Usage for Base Noun Phrase Chunking,ACL,https://aclanthology.org/P00-1016,Sequence_labeling,Segmentation,Disagreement,Full,Measurement,-,-,-,-,-
+2000,Sample Selection for Statistical Grammar Induction,ACL,https://aclanthology.org/W00-1306,Complex_structured_prediction,Parsing,Uncertainty,Full,-,-,-,-,-,-
+1998,Selective Sampling for Example-based Word Sense Disambiguation,ACL,https://aclanthology.org/J98-4002,Classification,WSD,Uncertainty,-,-,-,-,-,-,-
+1996,Minimizing Manual Annotation Cost in Supervised Training from Corpora,ACL,https://aclanthology.org/P96-1042,Sequence_labeling,POS,Disagreement,-,-,-,-,-,-,-
+2022,Active Learning Helps Pretrained Models Learn the Intended Task,cs.CL,-,Classification,"Others,Classification",Uncertainty,-,-,-,Transfer_learning,-,-,-
+2022,Active Few-Shot Learning with FASL,cs.CL,-,Classification,Classification,Uncertainty,-,-,-,-,-,Stop,-
+2022,Onception: Active Learning with Expert Advice for Real World Machine Translation,cs.CL,-,Generation,MT,"Disagreement,Others(special)",-,-,-,-,-,-,-
+2022,Dominant Set-based Active Learning for Text Classification and its Application to Online Social Media,cs.CL,-,Classification,Social,"Uncertainty,Diversity",-,-,-,-,-,-,-
+2022,Active Learning Over Multiple Domains in Natural Language Tasks,cs.CL,-,Classification,"Sentiment,Question_answering","Uncertainty,Discriminative",-,-,-,-,-,-,-
+2022,Impact of Stop Sets on Stopping Active Learning for Text Classification,cs.CL,-,Classification,Classification,Uncertainty,-,-,-,-,-,Stop,-
+2021,Hitting the Target: Stopping Active Learning at the Cost-Based Optimum,cs.CL,-,Others,Others,Others,-,-,-,-,-,Stop,-
+2021,Active Learning for Event Extraction with Memory-based Loss Prediction Model,cs.CL,-,Sequence_labeling,Event,"Uncertainty,Diversity,Performance_prediction",-,-,-,-,-,-,-
+2021,Diversity Enhanced Active Learning with Strictly Proper Scoring Rules,cs.CL,-,Classification,Classification,"Uncertainty,Diversity",-,-,-,-,-,-,-
+2021,Single-Modal Entropy based Active Learning for Visual Question Answering,cs.CL,-,Classification,Visual_question_answering,"Uncertainty,Performance_prediction,Discriminative",-,-,-,-,-,-,-
+2021,Active Learning for Argument Mining: A Practical Approach,cs.CL,-,Sequence_labeling,Discourse,"Uncertainty,Diversity",-,-,-,-,AL_stage,-,-
+2021,Improving Question Answering Performance Using Knowledge Distillation and Active Learning,cs.CL,-,Sequence_labeling,Question_answering,"Uncertainty,Diversity",-,-,-,-,-,-,-
+2021,Active learning for reducing labeling effort in text classification tasks,cs.CL,-,Classification,Classification,Uncertainty,-,-,-,-,-,-,-
+2021,Deep Active Learning for Text Classification with Diverse Interpretations,cs.CL,-,Classification,Classification,"Diversity,Uncertainty",-,-,-,-,-,-,-
+2021,Small-Text: Active Learning for Text Classification in Python,cs.CL,-,Classification,Classification,Others,-,-,-,-,-,-,Tools
+2020,Active Learning from Crowd in Document Screening,cs.CL,-,Classification,Classification,Others,-,-,-,-,-,-,Crowdsourcing
+2020,Medical symptom recognition from patient text: An active learning approach for long-tailed multilabel distributions,cs.CL,-,Classification,Classification,Diversity,-,-,-,-,-,-,Data_imbalance
+2020,Exemplar Guided Active Learning,cs.CL,-,Classification,WSD,"Uncertainty,Representative",-,-,-,-,-,-,Data_imbalance
+2020,Active Learning for Product Type Ontology Enhancement in E-commerce,cs.CL,-,Classification,Others,Others,-,-,-,-,-,-,-
+2020,Cost-Quality Adaptive Active Learning for Chinese Clinical Named Entity Recognition,cs.CL,-,Sequence_labeling,NER,Uncertainty,-,Cost_sensitive,-,-,-,-,-
+2020,A Survey of Active Learning for Text Classification using Deep Neural Networks,cs.CL,-,Others,Others,Others,-,-,-,-,-,-,-
+2020,Active Learning for Video Description With Cluster-Regularized Ensemble Ranking,cs.CL,-,Generation,Others,"Uncertainty,Disagreement,Diversity",-,-,-,-,-,-,-
+2020,"Annotating Social Determinants of Health Using Active Learning, and Characterizing Determinants Using Neural Event Extraction",cs.CL,-,Others,Event,"Uncertainty,Representative",-,-,-,-,-,-,-
+2020,Integrating Crowdsourcing and Active Learning for Classification of Work-Life Events from Tweets,cs.CL,-,Classification,Social,"Uncertainty,Disagreement",-,-,-,-,-,-,Crowdsourcing
+2020,Early Forecasting of Text Classification Accuracy and F-Measure with Active Learning,cs.CL,-,Classification,Classification,Others,-,-,-,-,-,Stop,-
+2020,LTP: A New Active Learning Strategy for CRF-Based Named Entity Recognition,cs.CL,-,Sequence_labeling,NER,Uncertainty,-,-,-,-,-,-,-
+2019,Deep Bayesian Active Learning for Multiple Correct Outputs,cs.CL,-,Generation,Visual_question_answering,Uncertainty,-,-,-,-,-,-,-
+2019,Using Error Decay Prediction to Overcome Practical Issues of Deep Active Learning for Named Entity Recognition,cs.CL,-,Sequence_labeling,NER,"Performance_prediction,Representative",-,-,-,-,-,-,-
+2019,NE-LP: Normalized Entropy and Loss Prediction based Sampling for Active Learning in Chinese Word Segmentation on EHRs,cs.CL,-,Sequence_labeling,Others,"Performance_prediction,Uncertainty",-,-,-,-,-,-,-
+2019,Active Annotation: bootstrapping annotation lexicon and guidelines for supervised NLU learning,cs.CL,-,Classification,Others,Representative,-,-,-,-,-,-,-
+2019,Privacy-preserving Active Learning on Sensitive Data for User Intent Classification,cs.CL,-,Classification,Others,Others(special),-,-,-,-,-,-,-
+2019,The Use of Unlabeled Data versus Labeled Data for Stopping Active Learning for Text Classification,cs.CL,-,Classification,Classification,Uncertainty,-,-,-,-,-,Stop,-
+2019,Stopping Active Learning based on Predicted Change of F Measure for Text Classification,cs.CL,-,Classification,Classification,Uncertainty,-,-,-,-,-,Stop,-
+2018,"OpenTag: Open Attribute Value Extraction from Product Profiles [Deep Learning, Active Learning, Named Entity Recognition]",cs.CL,-,Sequence_labeling,NER,Disagreement,-,-,-,-,-,-,-
+2018,Impact of Batch Size on Stopping Active Learning for Text Classification,cs.CL,-,Classification,Classification,Uncertainty,-,-,-,-,-,Stop,-
+2017,Deep Active Learning for Named Entity Recognition,cs.CL,-,Sequence_labeling,NER,Uncertainty,-,-,-,-,-,-,-
+2017,On Using Active Learning and Self-Training when Mining Performance Discussions on Stack Overflow,cs.CL,-,Classification,Classification,Uncertainty,-,-,-,Semi_supervised,-,-,-
+2016,Active Learning for Speech Recognition: the Power of Gradients,cs.CL,-,Sequence_labeling,Others,Gradient,-,-,-,-,-,-,-
+2016,Active Discriminative Text Representation Learning,cs.CL,-,Classification,Classification,Gradient,-,-,-,-,-,-,-
+2009,Active Learning for Mention Detection: A Comparison of Sentence Selection Strategies,cs.CL,-,Sequence_labeling,NER,"Uncertainty,Disagreement",-,-,-,-,-,-,-
+2022,A Comparative Survey of Deep Active Learning,Others,-,Classification,Others,Others,-,-,-,-,-,-,-
+2022,Active Learning on Pre-trained Language Model with Task-Independent Triplet Loss,Others,-,"Classification,Complex_structured_prediction","Classification,Others",Diversity,-,-,-,-,-,-,-
+2021,Batch Active Learning at Scale,Others,-,Classification,Others,Hybrid(multi_step),-,Wait_time,-,-,-,-,-
+2021,DeepAL: Deep Active Learning in Python,Others,-,Others,Others,Others,-,-,-,-,-,-,Tools
+2021,Multi-Domain Active Learning: A Comparative Study,Others,-,Classification,Others,Others,-,-,-,-,-,-,-
+2020,Active Learning: Problem Settings and Recent Developments,Others,-,Others,Others,Others,-,-,-,-,-,-,-
+2020,Active adversarial domain adaptation,Others,-,Classification,Others,Discriminative,-,-,-,Transfer_learning,-,-,-
+2020,"Query Strategies, Assemble! Active Learning with Expert Advice for Low-resource Natural Language Processing",Others,-,Sequence_labeling,Others,"Performance_prediction,Hybrid(dynamic)",-,-,-,-,-,-,-
+2020,Active Learning Stopping Strategies for Technology-Assisted Sensitivity Review,Others,-,Others,Others,Others,-,-,-,-,-,Stop,-
+2020,"Deep Batch Active Learning by Diverse, Uncertain Gradient Lower Bounds",Others,-,Others,Others,Hybrid(integrated),-,-,-,-,-,-,-
+2020,Rethinking deep active learning: Using unlabeled data at model training,Others,-,Others,Others,Others,-,-,-,Semi_supervised,-,-,-
+2020,Merging Weak and Active Supervision for Semantic Parsing,Others,-,Generation,Others,"Performance_prediction,Uncertainty,Batch_diversity",Partial,-,-,Weak_supervision,-,-,-
+2019,Batch Active Learning Using Determinantal Point Processes,Others,-,Others,Others,"Uncertainty,Batch_diversity,Hybrid(integrated)",-,-,-,-,-,-,-
+2019,Self-Paced Active Learning: Query the Right Thing at the Right Time,Others,-,Others,Others,Others(special),-,-,-,-,-,-,-
+2019,Variational Adversarial Active Learning,Others,-,Others,Others,Discriminative,-,-,-,Semi_supervised,-,-,-
+2019,Diverse mini-batch Active Learning,Others,-,Others,Others,"Batch_diversity,Hybrid(integrated)",-,-,-,-,-,-,-
+2019,Discriminative Active Learning,Others,-,Others,Others,Discriminative,-,-,-,-,-,-,-
+2019,Learning Loss for Active Learning,Others,-,Others,Others,Performance_prediction,-,-,-,-,-,-,-
+2019,Active learning with partial feedback,Others,-,Classification,Classification,Others,Partial,Wait_time,-,-,-,-,-
+2018,Adversarial active learning for deep networks: a margin based approach,Others,-,Others,Others,Uncertainty,-,-,-,-,-,-,-
+2018,Adversarial active learning for sequence labeling and generation,Others,-,"Sequence_labeling,Generation",Others,Discriminative,-,-,-,-,-,-,-
+2018,Active Learning for Neural Machine Translation,Others,-,Generation,MT,Others,-,-,-,-,-,-,-
+2018,Active Learning for Convolutional Neural Networks: A Core-Set Approach,Others,-,Others,Others,"Uncertainty,Diversity",-,-,-,-,-,-,-
+2017,Deep Active Learning over the Long Tail,Others,-,Others,Others,"Uncertainty,Diversity",-,-,-,-,AL_stage,-,-
+2017,Active Learning for Black-Box Semantic Role Labeling with Neural Factors,Others,-,Others,SRL,Performance_prediction,-,-,-,Semi_supervised,-,-,-
+2017,Cost-Effective Active Learning from Diverse Labelers,Others,-,Classification,Others,Uncertainty,-,Cost_sensitive,-,-,-,-,-
+2017,Active Learning for Structured Prediction from Partially Labeled Data,Others,-,Others,Others,Others,Partial,-,-,-,-,-,-
+2017,Learning algorithms for active learning,Others,-,Classification,Others,Performance_prediction,-,-,-,-,-,-,-
+2017,Deep Bayesian Active Learning with Image Data,Others,-,Others,Others,Disagreement,-,-,-,-,-,-,-
+2016,Dropout as a Bayesian Approximation: Representing Model Uncertainty in Deep Learning,Others,-,Others,Others,Others,-,-,-,-,-,-,-
+2016,Re-active learning: Active learning with relabeling,Others,-,Others,Others,Others,-,-,-,-,-,-,-
+2016,Cost-effective active learning for deep image classification,Others,-,Classification,Others,Others,-,-,-,Semi_supervised,-,-,-
+2015,Active learning by learning,Others,-,Classification,Others,Performance_prediction,-,-,-,-,-,-,-
+2015,A study of active learning methods for named entity recognition in clinical text,Others,-,Sequence_labeling,NER,Others,-,Measurement,-,-,-,-,-
+2015,An active learning approach to coreference resolution,Others,-,Others,Coreference,Others,Partial,-,-,-,-,-,-
+2013,Active learning for cross-domain sentiment classification,Others,-,Classification,Others,"Disagreement,Uncertainty",-,-,-,Transfer_learning,-,-,-
+2014,Active learning for crowdsourcing using knowledge transfer,Others,-,Classification,Others,Others,-,-,-,Transfer_learning,-,-,Crowdsourcing
+2013,Latent Structured Active Learning,Others,-,Others,Others,Others,Partial,-,-,Semi_supervised,-,-,-
+2013,Class imbalance and active learning,Others,-,Classification,Others,Others,-,-,-,-,-,-,Data_imbalance
+2012,Active learning for clinical text classification: is it better than random sampling?,Others,-,Others,Others,Others,-,-,-,-,-,-,-
+2011,From theories to queries: Active learning in practice,Others,-,Others,Others,Others,-,-,-,-,-,-,-
+2011,active supervised domain adaptation,Others,-,Classification,Classification,Uncertainty,-,-,-,Transfer_learning,-,-,-
+2011,Bayesian active learning for classification and preference learning,Others,-,Others,Others,"Uncertainty,Disagreement",-,-,-,-,-,-,-
+2011,Two faces of active learning,Others,-,Others,Others,Others,-,-,-,-,-,-,-
+2011,Active learning from crowds,Others,-,Classification,Others,Uncertainty,-,-,-,-,-,-,Crowdsourcing
+2011,Active learning with subsequence sampling strategy for sequence labeling tasks,Others,-,Sequence_labeling,"Others,NER",Uncertainty,Partial,-,-,-,-,-,-
+2010,Off to a good start: Using clustering to select the initial training set in active learning,Others,-,Classification,Others,Uncertainty,-,-,-,-,Seed,-,-
+2010,Active Learning With Sampling by Uncertainty and Density for Data Annotations,Others,-,Classification,"Classification,WSD","Uncertainty,Density,Hybrid(simple),Hybrid(multi_step)",-,Wait_time,-,-,-,-,-
+2010,Inactive learning?: difficulties employing active learning in practice,Others,-,Others,Others,Others,-,-,-,-,-,-,-
+2009,Active learning for object classification: from exploration to exploitation,Others,-,Classification,Others,"Uncertainty,Density,Hybrid(simple)",-,-,-,-,-,-,-
+2009,Reducing Class Imbalance during Active Learning for Named Entity Annotation,Others,-,Classification,Others,Uncertainty,-,-,-,-,-,-,Data_imbalance
+2008,Proactive Learning: Cost-Sensitive Active Learning with Multiple Imperfect Oracles,Others,-,Classification,Others,Uncertainty,-,Cost_sensitive,-,-,-,-,-
+2008,Return on investment for active learning,Others,-,Sequence_labeling,POS,"Uncertainty,Disagreement",-,Cost_sensitive,-,-,-,-,-
+2008,Actively transfer domain knowledge,Others,-,Classification,Others,Uncertainty,-,-,-,Transfer_learning,-,-,-
+2008,Active learning with real annotation costs,Others,-,"Classification,Sequence_labeling",NER,Uncertainty,-,"Measurement,Cost_sensitive",-,-,-,-,-
+2008,A stopping criterion for active learning,Others,-,"Classification,Sequence_labeling",Others,Uncertainty,-,-,-,-,-,Stop,-
+2008,Active learning for pipeline models,Others,-,Complex_structured_prediction,Others,Uncertainty,Full,-,-,-,-,-,-
+2007,Dual strategy active learning,Others,-,Classification,Others,Hybrid(dynamic),-,-,-,-,AL_stage,-,-
+2007,Learning on the border: active learning in imbalanced data classification,Others,-,Classification,Others,Uncertainty,-,Wait_time,-,-,-,Stop,Data_imbalance
+2007,Active learning for logistic regression: an evaluation,Others,-,Classification,Classification,"Uncertainty,Disagreement",-,-,-,-,-,-,-
+2006,Margin-based active learning for structured output spaces,Others,-,Complex_structured_prediction,Others,Uncertainty,Partial,-,-,-,-,-,-
+2005,Reducing labeling effort for structured prediction tasks,Others,-,Sequence_labeling,Others,Uncertainty,Full,"Measurement,Directly_reducing_cost",-,-,-,-,-
+2004,Active Learning Using Pre-clustering,Others,-,Classification,Others,Representative,-,-,-,-,-,-,-
+2004,Using cluster-based sampling to select initial training set for active learning in text classification,Others,-,Classification,Others,Uncertainty,-,-,-,-,Seed,-,-
+2003,Representative sampling for text classification using support vector machines,Others,-,Classification,Others,Representative,-,-,-,-,-,-,-
+2003,Incorporating diversity in active learning with support vector machines,Others,-,Classification,Others,Representative,-,-,-,-,-,-,-
+2001,Active Hidden Markov Models for Information Extraction,Others,-,Sequence_labeling,Others,Uncertainty,Partial,-,-,-,-,-,-
+2001,Support vector machine active learning with applications to text classification,Others,-,Classification,Others,Others,-,-,-,-,-,-,-
+2001,Toward Optimal Active Learning through Sampling Estimation of Error Reduction,Others,-,Classification,Others,"Uncertainty,Performance_prediction",-,Wait_time,-,-,-,-,-
+2000,Less is more: Active learning with support vector machines,Others,-,Classification,Others,Uncertainty,-,-,-,-,-,Stop,-
+1999,Active learning for natural language parsing and information extraction,Others,-,Sequence_labeling,Others,Heuristic,-,-,-,-,-,-,-
+1998,Employing EM and pool-based active learning for text classification,Others,-,Classification,Others,"Uncertainty,Representative",-,-,-,Semi_supervised,-,-,-
+1996,Active learning with statistical models,Others,-,Others,Others,Others,-,-,-,-,-,-,-
+1994,Improving generalization with active learning,Others,-,Others,Others,Disagreement,-,-,-,Semi_supervised,-,-,-
+1994,Heterogeneous uncertainty sampling for supervised learning,Others,-,Others,Others,Others,-,-,Model_mismatch,-,-,-,-
+1994,A sequential algorithm for training text classifiers,Others,-,Others,Others,Uncertainty,-,-,-,-,-,-,-
+1992,Query by committee,Others,-,Others,Others,Disagreement,-,-,-,-,-,-,-

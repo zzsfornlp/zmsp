@@ -95,8 +95,17 @@ class FrameReader:
                 # read name
                 frame_name = node_roleset.attrib['id']  # XX.0?
                 frame_descr = node_roleset.attrib['name']  # a short description
-                assert frame_name.split('.')[0] == lemma  # we can read lemma by frame name!
+                # assert frame_name.split('.')[0] == lemma  # we can read lemma by frame name!
+                if frame_name.split('.')[0] != lemma:
+                    zwarn(f"Frame_name({frame_name}) != lemma({lemma})")
                 one_frame = ZFrame(frame_name, descr=frame_descr)
+                # source
+                if 'source' in node_roleset.attrib:
+                    _source = node_roleset.attrib['source']
+                    if not _source.startswith('verb-'):
+                        zwarn(f"Strange source ignored: {node_roleset.attrib}")
+                    else:
+                        one_frame.info['source'] = _source[len('verb-'):]
                 # read aliases/lexicons
                 aliases = []
                 for node_aliases in node_roleset.findall('aliases'):
@@ -112,6 +121,10 @@ class FrameReader:
                 one_frame.info['filename'] = file_name
                 if len(aliases)>0:
                     one_frame.info['aliases'] = aliases
+                    assert lemma in [z.lemma for z in one_frame.lexicons]
+                else:
+                    _lex = ZLexicon(lemma, 'UNK')
+                    one_frame.add_lexicon(_lex)  # add lexicon
                 # read roles
                 for node_roles in node_roleset.findall('roles'):
                     for node_role in node_roles.findall('role'):
@@ -119,7 +132,7 @@ class FrameReader:
                         _role = ZRole(role_name, category='core', descr=role_descr)
                         one_frame.add_role(_role)
                         # extra info
-                        _role.info['f'] = node_role.attrib['f'].upper()
+                        _role.info['f'] = node_role.attrib.get('f', '').upper()
                         node_vnrole = node_role.find('vnrole')
                         if node_vnrole is not None:
                             _role.info['aliases'] = ["vn:"+node_vnrole.attrib['vntheta']]

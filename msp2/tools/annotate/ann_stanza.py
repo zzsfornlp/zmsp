@@ -64,6 +64,8 @@ class AnnotatorStanza(Annotator):
             # put things back
             if isinstance(one_origs, Doc):
                 self.put_doc(one_origs, doc)
+            if isinstance(one_origs, Sent):
+                self.put_sent(one_origs, doc.sentences[0])
             else:
                 assert isinstance(one_origs, list) and len(one_origs)==len(doc.sentences)
                 for one_orig_sent, one_nlp_sent in zip(one_origs, doc.sentences):
@@ -122,7 +124,8 @@ class AnnotatorStanza(Annotator):
             orig_sent.build_lemmas(list_lemmas)
         if self.pred_dep:
             orig_sent.build_dep_tree(list_dep_heads, list_dep_labels)
-        if list_word_positions is not None:
+        # note: do not rewrite original ones!
+        if list_word_positions is not None and orig_sent.word_positions is None:
             orig_sent.build_word_positions(list_word_positions)
         # --
 

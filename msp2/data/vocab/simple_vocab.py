@@ -477,12 +477,15 @@ class WordVectors:
         zlog(f"After merge, changed from {self.get_num_word()} to {orig_num}")
 
     @staticmethod
-    def load(fname: str, binary=False, txt_sep=" "):
+    def load(fname: str, binary=False, txt_sep=" ", return_raw=False):
         if binary:
-            vv = WordVectors._load_bin(fname)
+            words, vecs = WordVectors._load_bin(fname)
         else:
-            vv = WordVectors._load_txt(fname, txt_sep)
-        return vv
+            words, vecs = WordVectors._load_txt(fname, txt_sep)
+        if return_raw:
+            return words, vecs
+        else:
+            return WordVectors(words, vecs)
 
     @staticmethod
     def _load_txt(fname: str, sep=" "):
@@ -522,7 +525,7 @@ class WordVectors:
         num_words = len(vecs)
         # final
         zlog(f"Read ok: w2v num_words={num_words}, embed_size={embed_size}, repeat={repeated_count}")
-        return WordVectors(words, vecs)
+        return words, vecs
 
     @staticmethod
     def _load_bin(fname: str):
@@ -535,7 +538,7 @@ class WordVectors:
         words, vecs = kv.index2word, kv.vectors
         one = WordVectors(words, vecs)
         zlog(f"Read ok with {one.vocab}")
-        return one
+        return words, vecs
 
 # =====
 class VocabPackage:

@@ -2,10 +2,13 @@
 
 # The Mingled Structured Prediction v2 (zmsp2)
 # author: zzs
-# time: 2020.06 - now
+# time: 2020.06 - 2021.11
+# time2: 2021.11 - now
 
 # dependencies: pytorch, numpy, scipy, gensim, cython, pybind11, pandas
 # conda install pytorch=1.5.0 -c pytorch
+# or to run it on more recent gpus
+# conda install pytorch=1.8.0 cudatoolkit=11.1 -c pytorch -c conda-forge
 # conda install numpy scipy cython pybind11 pandas pip
 # gensim cannot use conda?
 # (optional): pip install transformers==3.1.0

@@ -32,6 +32,7 @@ class SrlInferenceHelperConf(BasicConf):
         self.use_cons_evt = False
         self.cons_evt_tok = "None"  # (lambda tok: return key) (lu -> frame)
         self.cons_evt_frame = "None"  # (lambda frame: return key) (lu -> frame); note: special one for given frame!
+        self.cons_evt_hit_delta0 = 0.  # if hit, add what delta to idx0
         # special for frame filtering
         self.pred_evt_filter = ""
         self.pred_evt_check_layer = -1  # check repeat for how many layers of evt type (for example, if 1 then no repeat L1)
@@ -58,7 +59,10 @@ class SrlInferenceHelperConf(BasicConf):
 
     # --
     def get_cons_evt_tok(self):
-        _pre_build = {'lemma': (lambda t: None if t.lemma is None else t.lemma.lower())}
+        _pre_build = {
+            'lemma': (lambda t: None if t.lemma is None else t.lemma.lower()),
+            'lemma0': (lambda t: t.lemma),
+        }
         ret = _pre_build.get(self.cons_evt_tok, None)
         if ret is None:
             ret = eval(self.cons_evt_tok)
@@ -333,9 +337,17 @@ class SrlInferenceHelper(BasicNode):
         # --
         valid_mask = BK.input_real(res).view(evt_scores.shape)  # [*, dlen, L]
         valid_mask.clamp_(max=1)
-        exclude_mask = (1 - valid_mask) * (valid_mask.sum(-1, keepdims=True)>0).float()  # no effects if no-hit!
+        hit_t = (valid_mask.sum(-1, keepdims=True)>0).float()  # at least one hit!
+        exclude_mask = (1 - valid_mask) * hit_t  # no effects if no-hit!
         exclude_mask[:, :, 0] = 0.  # note: still do not exclude NIL, use "pred_evt_nil_add" for special mode!
         evt_scores = evt_scores + exclude_mask * Constants.REAL_PRAC_MIN  # [*, dlen, L]
+        # --
+        _d0 = self.conf.cons_evt_hit_delta0
+        if _d0 != 0.:
+            d_scores = hit_t * _d0  # [*, dlen, 1]
+            d_scores = BK.pad(d_scores, [0, evt_scores.shape[-1]-1])  # [*, dlen, L]
+            evt_scores = evt_scores + d_scores
+        # --
         return evt_scores
 
     # [??, dlen, L], [??]

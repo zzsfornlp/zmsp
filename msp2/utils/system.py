@@ -10,7 +10,7 @@ import sys, os, subprocess, traceback, glob
 from .log import zopen, zlog
 
 # performing system CMD
-def system(cmd: str, pp=False, ass=False, popen=False):
+def system(cmd: str, pp=False, ass=False, popen=False, return_code=False):
     if pp:
         zlog(f"Executing cmd: {cmd}")
     if popen:
@@ -31,7 +31,11 @@ def system(cmd: str, pp=False, ass=False, popen=False):
         zlog(f"Output is: {output}")
     if ass:
         assert n == 0, f"Executing previous cmd returns error {n}"
-    return output
+    if return_code:
+        return output, n
+    else:
+        return output
+    # --
 
 # get mem info
 def get_statm():

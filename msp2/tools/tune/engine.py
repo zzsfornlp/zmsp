@@ -96,6 +96,10 @@ class Worker(object):
             t1 = time.time()
             zlog("-- End task %s, result %s, time %.2f sec." % (task, str(task.result), t1-t0))
             task.finished = True
+            if hasattr(task.result, 'get'):
+                return_code = task.result.get('return_code', None)
+                if return_code is not None and return_code != 0:
+                    task.error = True
         except:
             zlog("-- Exception task %s ->\n%s" % (task, traceback.format_exc()))
             task.error = True

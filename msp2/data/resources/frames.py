@@ -91,3 +91,84 @@ KBP17_TYPES = {z.lower() for z in ['Contact.Broadcast', 'Transaction.TransferMon
 def get_frames_label_budgets(key: str):
     ret = {"ace": ACE_ARG_BUDGETS, "ere": ERE_ARG_BUDGETS}[key]
     return ret.copy()
+
+# --
+FRAME_PRESET = {
+    "ace": {
+        "all": {
+            'Business:Declare-Bankruptcy', 'Business:End-Org', 'Business:Merge-Org', 'Business:Start-Org',
+            'Conflict:Attack', 'Conflict:Demonstrate',
+            'Contact:Meet', 'Contact:Phone-Write',
+            'Justice:Acquit', 'Justice:Appeal', 'Justice:Arrest-Jail', 'Justice:Charge-Indict', 'Justice:Convict', 'Justice:Execute', 'Justice:Extradite', 'Justice:Fine', 'Justice:Pardon', 'Justice:Release-Parole', 'Justice:Sentence', 'Justice:Sue', 'Justice:Trial-Hearing',
+            'Life:Be-Born', 'Life:Die', 'Life:Divorce', 'Life:Injure', 'Life:Marry',
+            'Movement:Transport',
+            'Personnel:Elect', 'Personnel:End-Position', 'Personnel:Nominate', 'Personnel:Start-Position',
+            'Transaction:Transfer-Money', 'Transaction:Transfer-Ownership',
+        },
+        "s5": {"Conflict:Attack", "Movement:Transport", "Life:Die", "Transaction:Transfer-Money", "Contact:Meet"},
+    },
+    "ere": {
+        "all": {
+            'Business:Declare-Bankruptcy', 'Business:End-Org', 'Business:Merge-Org', 'Business:Start-Org',
+            'Conflict:Attack', 'Conflict:Demonstrate',
+            'Contact:Broadcast', 'Contact:Contact', 'Contact:Correspondence', 'Contact:Meet',
+            'Justice:Acquit', 'Justice:Appeal', 'Justice:Arrest-Jail', 'Justice:Charge-Indict', 'Justice:Convict', 'Justice:Execute', 'Justice:Extradite', 'Justice:Fine', 'Justice:Pardon', 'Justice:Release-Parole', 'Justice:Sentence', 'Justice:Sue', 'Justice:Trial-Hearing',
+            'Life:Be-Born', 'Life:Die', 'Life:Divorce', 'Life:Injure', 'Life:Marry',
+            'Manufacture:Artifact',
+            'Movement:Transport-Artifact', 'Movement:Transport-Person',
+            'Personnel:Elect', 'Personnel:End-Position', 'Personnel:Nominate', 'Personnel:Start-Position',
+            'Transaction:Transaction', 'Transaction:Transfer-Money', 'Transaction:Transfer-Ownership',
+        },
+        "s5": {"Conflict:Attack", "Movement:Transport-Person", "Transaction:Transfer-Money", "Contact:Meet", "Life:Die"},
+    },
+    "upos": {
+        "frame0": {"NOUN", "VERB"},
+        "arg0": {"NOUN", "PRON", "PROPN"},
+        "open": {"ADJ", "ADV", "INTJ", "NOUN", "PROPN", "VERB"},
+        "closed": {"ADP", "AUX", "CCONJ", "DET", "NUM", "PART", "PRON", "SCONJ"},
+        # --
+        "spec1": {"NOUN", "VERB", "ADJ", "AUX"},  # a special set!
+    },
+    "udep": {  # from 'tree.FNodeReader'
+        'root': {'root'},
+        'loose': {'list', 'parataxis'},
+        'conj': {'conj'},
+        'core': {'nsubj', 'obj', 'iobj', 'csubj', 'ccomp', 'xcomp'},
+        'noncore': {'obl', 'vocative', 'expl', 'dislocated', 'advcl', 'advmod', 'discourse', 'aux', 'cop', 'mark'},
+        'nom': {'nmod', 'appos', 'nummod', 'acl', 'amod', 'det', 'clf', 'case'},
+        'mwe': {'fixed', 'flat', 'compound', 'goeswith', 'orphan', 'reparandum'},  # simply count them as mwe
+        'other': {'cc', 'punct', 'dep'},
+        # --
+        'spec1': {'parataxis', 'conj', 'nsubj', 'obj', 'iobj', 'csubj', 'ccomp', 'xcomp', 'obl', 'advcl', 'cop', 'nmod', 'appos', 'acl', 'compound'},  # a special set!
+    },
+    "pb": {
+        "main": {'ARG0', 'ARG1', 'ARG2', 'ARG3', 'ARG4', 'ARG5', 'ARGM-LOC'}
+    },
+}
+class FramePresetHelper:
+    def __init__(self, sig: str, default_value=True):
+        cur_col = FRAME_PRESET
+        for f in sig.split('.')[:-1]:
+            cur_col = cur_col[f]
+        f = sig.split('.')[-1]
+        # --
+        from msp2.utils import ZRuleFilter, zlog
+        from copy import deepcopy
+        self.sig = sig
+        self.filter = ZRuleFilter([z for z in f.split(",") if z], deepcopy(cur_col), default_value=default_value)
+        zlog(f"Build {self}")
+        # breakpoint()
+        # --
+
+    def __repr__(self):
+        return f"FramePresetHelper({self.sig})"
+
+    def f(self, name: str):
+        return self.filter.filter_by_name(name)
+
+    def c(self, name: str):
+        # currently do simple things!
+        if self.filter.filter_by_name(name):
+            return name
+        else:
+            return None

@@ -156,6 +156,14 @@ def _pb_delete_argv(insts: List):  # delete argv for srl!
                 a.delete_self()
     return insts
 
+@ZDataPreprocessor.reg_decorator("nb_delete_supp")
+def _nb_delete_supp(insts: List):  # delete supp for srl!
+    for evt in yield_frames(insts):
+        for a in list(evt.args):  # note: remember to copy!
+            if a.role in ["Support", "C-Support"]:
+                a.delete_self()
+    return insts
+
 @ZDataPreprocessor.reg_decorator("ace_merge_time")
 def _ace_merge_time(insts: List):  # merge Time* args
     for evt in yield_frames(insts):

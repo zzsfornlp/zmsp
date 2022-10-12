@@ -114,6 +114,7 @@ class AnnotatorP2DConf(AnnotatorConf):
         super().__init__()
         # specify corenlp
         self.p2d_home = ""  # use "this/stanford-corenlp-4.1.0.jar:this/stanford-parser-missing-file.jar"
+        self.p2d_version = "4.1.0"  # corenlp version
         self.p2d_tmp_dir = "./"  # tmp dir (by default current dir)
         self.p2d_log = ""  # output of semafor running
         self.p2d_lang = "en"  # en(ud), en-sd
@@ -136,7 +137,7 @@ class AnnotatorP2D(Annotator):
             self.corenlp_home = os.environ.get("CORENLP_HOME", "")
         assert self.corenlp_home != "", "Please provide 'corenlp_home': either by conf or ${CORENLP_HOME}"
         # --
-        self.cmd = f"java -Xmx8g -cp {self.corenlp_home}/stanford-corenlp-4.1.0.jar:{self.corenlp_home}/stanford-parser-missing-file.jar edu.stanford.nlp.trees.EnglishGrammaticalStructure -basic -conllx -keepPunct -language {conf.p2d_lang}"
+        self.cmd = f"java -Xmx8g -cp {self.corenlp_home}/stanford-corenlp-{conf.p2d_version}.jar:{self.corenlp_home}/stanford-parser-missing-file.jar edu.stanford.nlp.trees.EnglishGrammaticalStructure -basic -conllx -keepPunct -language {conf.p2d_lang}"
         # --
         self.p2d_upos_converter = eval(conf.p2d_upos_converter)
         self.p2d_udp_converter = eval(conf.p2d_udp_converter)

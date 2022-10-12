@@ -4,6 +4,7 @@
 
 __all__ = [
     "Constants", "StrHelper", "DictHelper", "NumHelper", "OtherHelper", "ZObject", "ZIndexer", "ZCachedValue",
+    "ZRuleFilter", "AllInSet",
 ]
 
 from typing import Dict, Callable, Type, Union, List
@@ -119,14 +120,15 @@ class OtherHelper:
     def printd_str(d, sep="\n", try_div=False, **kwargs):
         thems = []
         for k in sorted(list(d.keys())):
-            k2, _div = k, None
+            k2, _divs = k, []
             if try_div:  # try to div by sth.
                 while "_" in k2:
                     k2 = "_".join(k2.split("_")[:-1])
                     _div = d.get(k2)
                     if _div is not None:
-                        break
-            thems.append(f"{k}: {d[k]}" + ("" if _div is None else f" ({d[k]/_div if _div!=0 else 'NAN'})"))
+                        _divs.append(_div)
+            _res_divs = ", ".join([f"{d[k]/z:.2f}" if z!=0 else 'nan' for z in _divs])
+            thems.append(f"{k}: {d[k]}" + (f" ({_res_divs})" if _res_divs else ""))
         return sep.join(thems)
 
     @staticmethod
@@ -155,6 +157,9 @@ class ZObject:
                 setattr(self, k, v)
         for k, v in kwargs.items():
             setattr(self, k, v)
+
+    def __getitem__(self, item):
+        return self.__dict__[item]
 
     def __repr__(self):
         return str(self.__dict__)
@@ -212,3 +217,30 @@ class ZCachedValue:
         if not self._evaled:
             self._v = self.f()
         return self._v
+
+# --
+# Rule Filter
+
+class AllInSet(set):
+    def __contains__(self, item):
+        return True
+
+class ZRuleFilter:
+    def __init__(self, filter_rules: List[str], name_book: Dict, default_value: bool, name2keys=(lambda x: [x])):
+        self.rules = []  # (+/-, set)
+        assert '*' not in name_book
+        name_book['*'] = AllInSet()  # shortcut for ALL
+        for r in filter_rules:
+            _judge = {'+': True, '-': False}[r[0]]
+            _set = name_book.get(r[1:], {r[1:]})
+            self.rules.append((_judge, _set))
+        self.default_value = default_value
+        self.name2keys = name2keys
+        # --
+
+    def filter_by_name(self, name: str):
+        for _judge, _set in self.rules:
+            for n in self.name2keys(name):
+                if n in _set:
+                    return _judge
+        return self.default_value

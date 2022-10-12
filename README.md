@@ -8,6 +8,10 @@ Hi, here is a probably useful repo for Structured Prediction tasks.
 
 (* The following ones are using the current version of zmsp-[v2](./msp2).)
 
+- "A Survey of Active Learning for Natural Language Processing": [details](./msp2/docs/al4nlp/readme.md)
+
+- "Transfer Learning from Semantic Role Labeling to Event Argument Extraction with Template-based Slot Querying": [TODO](TODO)
+
 - "On the Benefit of Syntactic Supervision for Cross-lingual Transfer in Semantic Role Labeling": [details](./msp2/docs/srl_cl/readme.md)
 
 - "Comparing Span Extraction Methods for Semantic Role Labeling": [details](./msp2/docs/srl_span/readme.md)

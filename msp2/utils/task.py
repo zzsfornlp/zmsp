@@ -139,15 +139,20 @@ class F1EvalEntry:
     # =====
     @property
     def res(self):
+        return self.prf[-1]
+
+    @property
+    def prf(self):
         P, R = self.p.res, self.r.res
-        F1 = MathHelper.safe_div(2*P*R, P+R)
-        return F1
+        F1 = MathHelper.safe_div(2 * P * R, P + R)
+        # P, R, F1 = [round(z, 4) for z in (P, R, F1)]
+        return P, R, F1
 
     @property
     def details(self):
         return self.p.details + self.r.details + (self.res, )
 
-    def __float__(self): return self.res
+    def __float__(self): return float(self.res)
     def __repr__(self): return f"{str(self.p)}; {str(self.r)}; {float(self):.4f}"
 
 # =====

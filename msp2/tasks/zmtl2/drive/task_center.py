@@ -11,7 +11,7 @@ from collections import OrderedDict
 from msp2.utils import Conf, ConfEntryChoices, zlog
 from ..core import ZTask, ZTaskConf
 from .data_center import DataCenter
-from ..zmod import ZTaskEncBertConf, ZTaskUposConf, ZTaskUdepConf, ZTaskSrlConf, ZTaskMlmConf, ZTaskSrl2Conf
+from ..zmod import ZTaskEncBertConf, ZTaskUposConf, ZTaskUdepConf, ZTaskSrlConf, ZTaskMlmConf, ZTaskSrl2Conf, ZTaskTagConf
 
 # --
 class TaskCenterConf(Conf):
@@ -32,6 +32,7 @@ class TaskCenterConf(Conf):
         self.pbS = ConfEntryChoices({"yes": ZTaskSrl2Conf.make_conf('pbS'), "no": None}, "no")
         self.ee = ConfEntryChoices({"yes": ZTaskSrlConf.make_conf('ee'), "no": None}, "no")
         self.fn = ConfEntryChoices({"yes": ZTaskSrlConf.make_conf('fn'), "no": None}, "no")
+        self.tag = ConfEntryChoices({"yes": ZTaskTagConf(), "no": None}, "no")
         # --
 
     def get_all_tconfs(self):

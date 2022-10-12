@@ -63,8 +63,9 @@ class TreeNode(IdAssignable):
         return self.par is None
 
     def __getattr__(self, item):
-        if item in self.props:
-            return self.props[item]
+        _props = super().__getattribute__('props')
+        if item in _props:
+            return _props[item]
         else:
             raise AttributeError()
 

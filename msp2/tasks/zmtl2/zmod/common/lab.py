@@ -151,10 +151,13 @@ class ZlabelNode(BasicNode):
             ret_t, _ = self._get_score(sel_score_t, nil_add_score=nil_add_score)  # [??, ..., L]
         # handle searching with bigram (crf mode!)
         if self.crf is not None:
-            if premask_t is None:
-                _seq_mask_t = seq_mask_t[preidx_t]  # [??, ..., D]
+            if premask_t is None and preidx_t is None:
+                _seq_mask_t = seq_mask_t
             else:
-                _seq_mask_t = seq_mask_t[premask_t>0.]  # [??, ..., D]
+                if premask_t is None:
+                    _seq_mask_t = seq_mask_t[preidx_t]  # [??, ..., D]
+                else:
+                    _seq_mask_t = seq_mask_t[premask_t>0.]  # [??, ..., D]
             # --
             # todo(+N): hacky fix, make it a leading NIL
             _seq_mask_t2 = _seq_mask_t.clone()

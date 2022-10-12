@@ -3,8 +3,8 @@
 # configuration class
 
 __all__ = [
-    "Conf", "GlobalConf", "get_singleton_global_conf", "ConfItem",
-    "ConfEntry", "ConfEntryGlob", "ConfEntryChoices", "ConfEntryList", "ConfEntryTyped",
+    "Conf", "GlobalConf", "init_singleton_global_conf", "get_singleton_global_conf", "ConfItem",
+    "ConfEntry", "ConfEntryGlob", "ConfEntryChoices", "ConfEntryList", "ConfEntryDict", "ConfEntryTyped",
 ]
 
 from typing import List, Tuple, Dict, Iterable, Type, Union
@@ -139,14 +139,17 @@ class Conf(JsonSerializable):
                 new_v = ConfEntryGlob(True).getv(value_str)
             # ...
             if new_v is None:
-                # case 1: specially dealing with List
+                # case 1: specially dealing with List/Dict
                 # todo(note): avoid the case for eval with a simple heurist: checking ends_pair
                 ends_pair = (value_str[0]+value_str[-1]) if len(value_str)>0 else ""
                 needs_eval = (ends_pair in ["()", "[]", "{}"])
-                if isinstance(old_v, list) and not needs_eval:
-                    # get or guess element's type
-                    _list_item_type = (str if len(old_v)==0 else type(old_v[0])) if hint_type is None else hint_type
-                    new_v = ConfEntryList.list_getv(value_str, _list_item_type)
+                if not needs_eval:
+                    if isinstance(old_v, list):
+                        # get or guess element's type
+                        _list_item_type = (str if len(old_v)==0 else type(old_v[0])) if hint_type is None else hint_type
+                        new_v = ConfEntryList.list_getv(value_str, _list_item_type)
+                    elif isinstance(old_v, dict):  # simply make them str and convert specifically!
+                        new_v = ConfEntryDict.dict_getv(value_str, str)
             # otherwise
             if new_v is None:  # must be not assigned successfully by case 1
                 # case 2: special types for which directly using eval
@@ -271,7 +274,16 @@ class Conf(JsonSerializable):
             # cmd configs are at the end
             args = f_args + args[1:]
         argv = OrderedDict()
+        quotes_to_remove = "''", "\"\""
         for a in args:
+            # --
+            # remove outside quotes
+            while True:
+                if len(a)>2 and any(a[0]+a[-1] == z for z in quotes_to_remove):
+                    a = a[1:-1]
+                else:
+                    break
+            # --
             fields = a.split(sep, 1)        # only split the first one
             assert len(fields) == 2, "Strange config updating value"
             if fields[0] in argv and not quite:
@@ -336,8 +348,13 @@ class GlobalConf(Conf):
             return value
 
 # singleton
-_singleton_global_conf = GlobalConf()
-def get_singleton_global_conf(): return _singleton_global_conf
+_singleton_global_conf = None
+def get_singleton_global_conf():
+    return _singleton_global_conf
+
+def init_singleton_global_conf():
+    global _singleton_global_conf
+    _singleton_global_conf = GlobalConf()
 
 # =====
 # Conf Entries
@@ -414,6 +431,27 @@ class ConfEntryList(ConfEntry):
         # try split and assign
         try:
             ret = [ConfEntryTyped.typed_getv(z, T) for z in x.split(Conf.LIST_SEP)] if len(x) > 0 else []
+        except:
+            ret = eval(x)
+        return ret
+
+class ConfEntryDict(ConfEntry):
+    def __init__(self, item_type: Type, default: Dict):
+        super().__init__(default)
+        self.item_type = item_type
+
+    def getv(self, x: str):
+        return ConfEntryDict.dict_getv(x, self.item_type)
+
+    @staticmethod
+    def dict_getv(x: str, T: Type):
+        # try split and assign
+        try:
+            ret = OrderedDict()  # note: preserve the order!!
+            if len(x) > 0:
+                for z in x.split(";"):
+                    k, v = z.split(":", 1)
+                    ret[k] = ConfEntryTyped.typed_getv(v, T)
         except:
             ret = eval(x)
         return ret

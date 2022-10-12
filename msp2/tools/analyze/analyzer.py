@@ -8,6 +8,7 @@ __all__ = [
 
 from typing import List, Type, Dict
 from itertools import chain
+from collections import Counter
 import traceback
 import pandas as pd
 import numpy as np
@@ -176,7 +177,7 @@ class Analyzer(Registrable):
         return ret
 
     # protocol: target: instances, gcode: d for each instances; return one node
-    def do_group(self, insts_target: str, gcode: str, sum_key="count") -> RecordNode:
+    def do_group(self, insts_target: str, gcode: str, sum_key="ncount") -> RecordNode:
         return self._do_group(insts_target, gcode, sum_key, None)
 
     # protocol: target: instances, gcode: d for each instances; return one node
@@ -201,12 +202,18 @@ class Analyzer(Registrable):
             sum_key = eval(sum_key)  # eval the lambda expression
         all_nodes = ret.get_descendants(key=sum_key)
         ss = []
+        _accu_count = 0
         for z in all_nodes:
             all_parents = z.get_antecedents()
             if len(all_parents) > 0:
                 assert all_parents[0].count == all_count
+            if len(all_parents) == 1:
+                _accu_count += z.count
+                _accu_str = f"{_accu_count/all_count:.4f}"
+            else:
+                _accu_str = ""
             perc_info = ', '.join([f"{z.count/(zp.count+1e-6):.4f}" for zp in all_parents])
-            ss.append(['=='*len(z.path), str(z.path), f"{z.count}({perc_info})", z.get_content()])
+            ss.append(['=='*len(z.path), str(z.path), f"{z.count}({perc_info})[{_accu_str}]", z.get_content()])
         # sstr = "\n".join(ss)
         # sstr = ""
         # pd.set_option('display.width', 1000)
@@ -289,14 +296,20 @@ class Analyzer(Registrable):
             except:
                 no_pred = True
             # --
-            if not no_pred and d.gold is not None:
+            no_gold = False
+            try:
+                key_g = eval(_fg)
+            except:
+                no_gold = True
+            # --
+            if not no_pred and not no_gold:
                 corr = eval(_fcorr)
             if not no_pred:
                 key_p = eval(_fp)
                 if key_p not in res:
                     res[key_p] = F1EvalEntry()
                 res[key_p].record_p(int(corr))
-            if d.gold is not None:
+            if not no_gold:
                 key_g = eval(_fg)
                 if key_g not in res:
                     res[key_g] = F1EvalEntry()
@@ -417,7 +430,8 @@ class AnnotationTask:
         return f"# == Current ANN status: {self.cur_idx}/{self.length}"
 
     def obj_info(self, obj, **kwargs) -> str:
-        return None  # if None, then no info!
+        # return None  # if None, then no info!
+        return str(obj)
 
     # setting cur_idx and return the new cur_idx
     def set_cur(self, offset=0, abs_idx=-1, no_jump_over=False):
@@ -437,13 +451,13 @@ class AnnotationTask:
     # =====
     # common commands
 
-    def do_aj(self, offset=0, abs_idx=-1, no_jump_over=False):
+    def do_aj(self, offset=0, abs_idx=-1, no_jump_over=False, **kwargs):
         offset, abs_idx, no_jump_over = int(offset), int(abs_idx), bool(int(no_jump_over))
         # --
         old_idx = self.cur_idx
         self.set_cur(offset, abs_idx, no_jump_over)
         zlog(f"JUMP from {old_idx} to {self.cur_idx}")
-        self.do_ap()
+        self.do_ap(**kwargs)
         return
 
     def do_ap(self, **kwargs):

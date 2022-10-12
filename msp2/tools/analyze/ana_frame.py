@@ -6,11 +6,11 @@ from itertools import chain
 import pandas as pd
 from typing import List
 from msp2.data.inst import Sent, ArgLink, Frame, Token, Mention, \
-    yield_sent_pairs, yield_sents, MyPrettyPrinter, set_ee_heads
+    yield_sent_pairs, yield_sents, yield_frames, MyPrettyPrinter, set_ee_heads
 from msp2.data.rw import ReaderGetterConf
 from msp2.proc.eval import *
 from msp2.proc import ResultRecord
-from msp2.utils import OtherHelper, zlog, ConfEntryChoices, AccEvalEntry, F1EvalEntry
+from msp2.utils import OtherHelper, zlog, ConfEntryChoices, AccEvalEntry, F1EvalEntry, zglob
 from .analyzer import AnalyzerConf, Analyzer, AnnotationTask
 
 # --
@@ -140,7 +140,8 @@ class FrameAnalyzer(Analyzer):
         _other_args = []
         # --
         all_res = {}
-        for one_pidx, one_pred in enumerate(conf.preds):
+        _pred_files = sum([zglob(z, sort=True) for z in conf.preds], [])
+        for one_pidx, one_pred in enumerate(_pred_files):
             one_insts = self.take_first_samples(list(conf.extra.get_reader(input_path=one_pred)))  # get all of them
             if conf.pred_set_ee_heads:  # auto heads
                 set_ee_heads(one_insts)
@@ -167,7 +168,7 @@ class FrameAnalyzer(Analyzer):
                 for _pair in cur_pairs:
                     if _pair.gold is None or id(_pair.gold) not in cur_map:  # no hit or no hit for join-c case!
                         # todo(+W): it could be better if we can align preds
-                        _preds, _res = [None] * len(conf.preds), [None] * len(conf.preds)
+                        _preds, _res = [None] * len(_pred_files), [None] * len(_pred_files)
                         _preds[one_pidx], _res[one_pidx] = _pair.pred, _pair
                         other_ones.append([last_hit_gold_idx, None, _preds, _res])
                     else:

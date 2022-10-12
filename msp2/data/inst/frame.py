@@ -84,7 +84,13 @@ class Mention(InSentInstance):
     def get_shoff(self): return self.shead_widx - self.widx  # single-head's offset inside larger span
 
     def get_tokens(self):
-        return self.sent.tokens[self.widx, self.wridx]
+        return self.sent.tokens[self.widx:self.wridx]
+
+    def get_words(self, concat=False):
+        ret = self.sent.seq_word.vals[self.widx:self.wridx]
+        if concat:
+            ret = " ".join(ret)
+        return ret
 
     @property
     def shead_token(self):

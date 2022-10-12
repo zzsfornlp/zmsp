@@ -11,6 +11,7 @@ from typing import List, Union, Callable
 import os
 from msp2.utils import DivNumber, AccEvalEntry, F1EvalEntry, zlog, default_json_serializer, zwarn
 from msp2.data.inst import Doc, Sent, Mention, Frame, ArgLink, yield_sent_pairs, set_ee_heads
+from msp2.data.resources.frames import FramePresetHelper
 from .base import *
 from .helper import *
 
@@ -37,9 +38,21 @@ class FrameEvalConf(EvalConf):
         self.posi_thresh_frame = 1.0
         self.posi_thresh_arg = 1.0
         self.match_lab_alpha = 0.25  # label's weight for matching
+        # modification to labels?
+        self.labf_frame = ""
+        self.labf_arg = ""  # or require the triple: "(lambda x: (x.label, x.main.label, x.arg.label))"
         # --
         # special mode!!
         self.fpair_filter = "None"
+        self.apair_filter = "None"
+        # --
+        # breakdowns (function of item to label, note: ignore if return None!)
+        self.bd_frame = ""
+        self.bd_arg = ""
+        # for printing breakdowns
+        self.bd_frame_lines = 0  # how many lines to print for breakdown (0 means nope)
+        self.bd_arg_lines = 0
+        # --
 
 # --
 # pre-compiled frame-getter
@@ -66,8 +79,21 @@ class FrameEvaler(Evaluator):
         self.span_getter_arg = Mention.create_span_getter(conf.span_mode_arg)
         # special
         self.fpair_filter_f = eval(conf.fpair_filter)
+        self.apair_filter_f = eval(conf.apair_filter)
+        # breakdown analysis
+        self.bd_frame = FramePresetHelper(conf.bd_frame) if conf.bd_frame else None
+        self.bd_arg = FramePresetHelper(conf.bd_arg) if conf.bd_arg else None
         # --
         self.current_result = FrameEvalResult.zero(conf)
+        # lab function
+        self.default_labf = (lambda x: x.label.lower())
+        self.labf_frame = self.labf_arg = self.default_labf
+        if conf.labf_frame:
+            self.labf_frame = eval(conf.labf_frame)
+        if conf.labf_arg:
+            self.labf_arg = eval(conf.labf_arg)
+        # --
+
 
     def get_current_result(self): return self.result
 
@@ -93,7 +119,8 @@ class FrameEvaler(Evaluator):
             return FrameEvalResult.zero(conf)
         # --
         # first match frames
-        frame_pairs = self._match_items(gold_frames, pred_frames, self.span_getter_frame, conf.posi_thresh_frame)
+        frame_pairs = self._match_items(gold_frames, pred_frames, self.span_getter_frame, conf.posi_thresh_frame,
+                                        labf=self.labf_frame)
         if self.fpair_filter_f is not None:  # special filtering
             frame_pairs = [p for p in frame_pairs if self.fpair_filter_f(p)]
         # then match args & full
@@ -101,15 +128,18 @@ class FrameEvaler(Evaluator):
         full_pairs = []
         for fpair in frame_pairs:
             if fpair.is_matched():
-                _lab_arr = float(fpair.gold.label.lower()==fpair.pred.label.lower()) if conf.match_arg_with_frame_type else None
+                # _lab_arr = float(fpair.gold.label.lower()==fpair.pred.label.lower()) if conf.match_arg_with_frame_type else None
+                _lab_arr = float(self.labf_frame(fpair.gold)==self.labf_frame(fpair.pred)) if conf.match_arg_with_frame_type else None
                 one_arg_pairs = self._match_items(
                     self._get_args(fpair.gold), self._get_args(fpair.pred), self.span_getter_arg, conf.posi_thresh_arg,
-                    lab_arr=_lab_arr)  # whether need to count frame type??
+                    lab_arr=_lab_arr, labf=self.labf_arg)  # whether need to count frame type??
             elif fpair.gold is not None:
                 one_arg_pairs = [MatchedPair(a, None) for a in self._get_args(fpair.gold)]
             else:
                 one_arg_pairs = [MatchedPair(None, a) for a in self._get_args(fpair.pred)]
             arg_pairs.extend(one_arg_pairs)
+            if self.apair_filter_f is not None:  # special filtering
+                arg_pairs = [p for p in arg_pairs if self.apair_filter_f(p)]
             # copy and calculate (reduce all by prod) for full match!
             fpair2 = fpair.copy()
             fpair2.arg_pairs = one_arg_pairs  # directly set here!
@@ -126,11 +156,14 @@ class FrameEvaler(Evaluator):
             gold_all_args, pred_all_args = [a for f in gold_frames for a in self._get_args(f)], \
                                            [a for f in pred_frames for a in self._get_args(f)]
             # must match type in this mode!!
-            ftype_masks = ItemMatcher.score_items([a.main.label.lower() for a in gold_all_args],
-                                                  [a.main.label.lower() for a in pred_all_args])
+            ftype_masks = ItemMatcher.score_items(
+                [self.labf_frame(a.main) for a in gold_all_args], [self.labf_frame(a.main) for a in pred_all_args])
             # replace instead
-            arg_pairs = self._match_items(gold_all_args, pred_all_args, self.span_getter_arg, conf.posi_thresh_arg,
-                                          posi_arr=ftype_masks)  # note: especially make this the base one: posi_arr!!
+            arg_pairs = self._match_items(
+                gold_all_args, pred_all_args, self.span_getter_arg, conf.posi_thresh_arg,
+                posi_arr=ftype_masks, labf=self.labf_arg)  # note: especially make this the base one: posi_arr!!
+            if self.apair_filter_f is not None:  # special filtering
+                arg_pairs = [p for p in arg_pairs if self.apair_filter_f(p)]
         # get results
         self._process_frame_pairs(frame_pairs)
         self._process_arg_pairs(arg_pairs)
@@ -139,15 +172,18 @@ class FrameEvaler(Evaluator):
         return res
 
     # matches
-    def _match_items(self, items1: List, items2: List, span_getter: Callable, posi_thresh: float, posi_arr=None, lab_arr=None):
+    def _match_items(self, items1: List, items2: List, span_getter: Callable, posi_thresh: float,
+                     posi_arr=None, lab_arr=None, labf=None):
         conf: FrameEvalConf = self.conf
         lab_alpha = conf.match_lab_alpha
+        if labf is None:
+            labf = self.default_labf
         # --
         mentions1, mentions2 = [z.mention for z in items1], [z.mention for z in items2]
         scores_posi_arr = ItemMatcher.score_mentions(mentions1, mentions2, span_getter, posi_thresh)  # [size1, size2]
         if posi_arr is not None:  # extra mask
             scores_posi_arr *= posi_arr
-        labs1, labs2 = [z.label.lower() for z in items1], [z.label.lower() for z in items2]
+        labs1, labs2 = [labf(z) for z in items1], [labf(z) for z in items2]
         scores_lab_arr = ItemMatcher.score_items(labs1, labs2)  # [size1, size2]
         scores_lab_arr *= scores_posi_arr  # multiply by posi
         if lab_arr is not None:
@@ -172,8 +208,21 @@ class FrameEvaler(Evaluator):
 
     # =====
     # for special budget settings
-    def _get_frames(self, s: Sent): return self.frame_getter(s)
-    def _get_args(self, frame: Frame): return frame.args
+    def _get_frames(self, s: Sent):
+        ret = self._do_get_frames(s)
+        if self.bd_frame is not None:
+            ret = [z for z in ret if self.bd_frame.c(z.label)]
+        return ret
+
+    def _get_args(self, frame: Frame):
+        ret = self._do_get_args(frame)
+        if self.bd_arg is not None:
+            ret = [z for z in ret if self.bd_arg.c(z.label)]
+        return ret
+
+    # to be overridden
+    def _do_get_frames(self, s: Sent): return self.frame_getter(s)
+    def _do_get_args(self, frame: Frame): return frame.args
     def _process_frame_pairs(self, pairs: List[MatchedPair]): pass
     def _process_arg_pairs(self, pairs: List[MatchedPair]): pass
     def _process_full_pairs(self, pairs: List[MatchedPair]): pass
@@ -274,6 +323,14 @@ class FrameEvalResult(EvalResult):
             rets.append(f"{_key}: " + "/".join([f"{v:.4f}" for v in f1s]))
         return " ||| ".join(rets)
 
+    def get_bd_str(self, pairs, lines: int, tag: str):
+        df = MatchedPair.breakdown_eval(pairs)
+        r_macro, r_macro2, r_micro = MatchedPair.df2avg(df)
+        summary = {f'ZBreak-{tag}': {'macro': r_macro, 'macro2': r_macro2, 'micro': r_micro}}
+        center_line = "" if len(df) <= lines else f" ... (Truncate {lines}/{len(df)})\n"
+        ret = f"# -- Breakdown-{tag}\n{df[:lines].to_string()}\n{center_line}{summary}\n# --"
+        return ret
+
     def get_detailed_str(self) -> str:
         # more detailed results
         rets = []
@@ -281,6 +338,13 @@ class FrameEvalResult(EvalResult):
         for _key in ["posi", "lab"]:
             for _e, _n in zip(list(self.current_results[_key])+[final_results[_key]], ['frame', 'arg', 'full', 'final']):
                 rets.append(f"{_key}-{_n}: {_e}")
+        # --
+        # get breakdown results?
+        if self.conf.bd_frame_lines > 0:
+            rets.append(self.get_bd_str(self.frame_pairs, self.conf.bd_frame_lines, 'Frame'))
+        if self.conf.bd_arg_lines > 0:
+            rets.append(self.get_bd_str(self.arg_pairs, self.conf.bd_arg_lines, 'Arg'))
+        # --
         return "\n".join(rets)
 
     def get_summary(self) -> dict:
@@ -334,7 +398,7 @@ class MyFNEvaler(FrameEvaler):
         zlog(f"Read coreness from {conf.frame_file}: {len(self.coreness_map)} frames, {num_arg} args, {num_core} core-args.")
         # --
 
-    def _get_frames(self, s: Sent):
+    def _do_get_frames(self, s: Sent):
         conf: MyFNEvalConf = self.conf
         # --
         ret_frames = self.frame_getter(s)
@@ -351,7 +415,7 @@ class MyFNEvaler(FrameEvaler):
             ret_frames = [flist[-1] for flist in frames_map.values()]
         return ret_frames
 
-    def _get_args(self, frame: Frame):
+    def _do_get_args(self, frame: Frame):
         conf: MyFNEvalConf = self.conf
         # --
         ret_args = frame.args
@@ -445,7 +509,7 @@ class MyPBEvaler(FrameEvaler):
         super().__init__(conf)
         # --
 
-    def _get_frames(self, s: Sent):
+    def _do_get_frames(self, s: Sent):
         # remove repeated ones and keep wlen==1
         hit_frames = [None] * len(s)
         for f in self.frame_getter(s):
@@ -455,7 +519,7 @@ class MyPBEvaler(FrameEvaler):
             hit_frames[one_widx] = f
         return [f for f in hit_frames if f is not None]
 
-    def _get_args(self, frame: Frame):
+    def _do_get_args(self, frame: Frame):
         _no_join_c = self.conf.no_join_c
         # note: here we don't make it a seq, but do combine A? & C-A?
         last_role_maps = {}

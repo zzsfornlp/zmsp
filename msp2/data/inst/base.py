@@ -210,10 +210,12 @@ class DataInstance(JsonSerializable):
             return v
 
     # actual deep copy
-    def copy(self):
+    def copy(self, ignore_fields=None):
         inst = self.__class__(_id=self._id)  # copy one!!
         cur_sub_map = self.__class__.get_sub_map()
         for k in self.valid_json_fields():
+            if ignore_fields is not None and k in ignore_fields:
+                continue  # ignore these fields
             v = getattr(self, k)
             k_info = cur_sub_map.get(k)
             to_assign = self._deal_with_wrapper(v, k_info, self._func_copy, inst=inst)
@@ -244,6 +246,7 @@ class DataInstance(JsonSerializable):
         self._id = _id  # id
         self._par = _par  # Parent Node
         self.info = {}  # other info
+        self._cache = {}  # other info not to be save/load
 
     # def __getattr__(self, item):
     #     info = self.info

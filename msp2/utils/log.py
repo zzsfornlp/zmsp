@@ -16,7 +16,7 @@ class Logger:
     _instance = None  # singleton instance
     _logger_heads = {
         "plain": "-- ", "time": "## ", "io": "== ", "result": ">> ", "report": "** ", "config": "CC ",
-        "warn": "!! ", "error": "ER ", "fatal": "KI ",
+        "warn": "Warn ", "error": "Error ", "fatal": "KI ",
         "debug": "DE ", "nope": "", "": "",
     }
     MAGIC_CODE = "?THE-NATURE-OF-HUMAN-IS?"  # REPEATER?
@@ -27,25 +27,37 @@ class Logger:
         return Logger._instance
 
     @staticmethod
-    def init(files: Iterable = (), level=0, use_magic_file=False):
+    def init(files: Iterable = (), level=0, use_magic_file=False, log_last=False, log_append=False):
         s = "LOG-%s-%s.txt" % (platform.uname().node, '-'.join(time.ctime().split()[-4:]))
         s = '-'.join(s.split(':'))      # ':' raise error in Win
         log_files = [s] if use_magic_file else []
         log_files.extend([f for f in files if (f is not None) and ((not isinstance(f, str)) or len(f)>0)])
-        Logger._instance = Logger(log_files, level=level)
+        # --
+        _old_instance = Logger._instance
+        if _old_instance is None or log_files != _old_instance.log_files:
+            Logger._instance = Logger(log_files, level=level, log_last=log_last, log_append=log_append)
+        else:
+            zlog("Pass init to allow continue writing!!")
         # zlog("START!!", func="plain")
 
     # =====
-    def __init__(self, log_files: Iterable, level=0):
+    def __init__(self, log_files: Iterable, level=0, log_last=False, log_append=False):
         self.log_files = list(log_files)
+        self.log_last = log_last
+        self.log_append = log_append
         self.fds = []
+        self.cached_lines = []  # store them if log_last
         # the managing of open files (except outside handlers like stdio) is by this one
         for f in log_files:
             if isinstance(f, str):
-                one_fd = zopen(f, mode="w")
+                if not self.log_last:
+                    one_fd = zopen(f, mode=("a" if self.log_append else "w"))
+                else:
+                    one_fd = None
             else:  # should be already a fd
                 one_fd = f
-            self.fds.append(one_fd)
+            if one_fd:
+                self.fds.append(one_fd)
         self.level = level
 
     def __del__(self):
@@ -73,6 +85,18 @@ class Logger:
                 ss = f"{head}{s}"
             for f in self.fds:
                 print(ss, end=end, file=f, flush=flush)
+
+    def flush_cached_logs(self, clear=False):
+        if self.log_last:  # write out logs!
+            for f in self.log_files:
+                zlog(f'Flush {len(self.cached_lines)} lines to {f}')
+                if isinstance(f, str):
+                    with zopen(f, mode=("a" if self.log_append else "w")) as fd:
+                        for line in self.cached_lines:
+                            fd.write(line)
+            if clear:  # by default no clear!
+                self.cached_lines.clear()
+        # --
 
     # =====
     # system's logging module

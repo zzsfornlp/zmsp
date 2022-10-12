@@ -328,3 +328,5 @@ class CharIndexer:
             m.info["_code"] = ret_code
             return m, ret_code
 # --
+
+# b msp2/data/inst/helper:311

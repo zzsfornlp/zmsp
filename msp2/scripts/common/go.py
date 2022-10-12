@@ -18,6 +18,7 @@ __all__ = [
 
 import os
 from copy import deepcopy
+import shlex
 from msp2.utils import Conf, ConfEntryChoices, zlog, init_everything, mkdir_p, zglob1, system, zopen
 from msp2.tools.tune import engine as te
 
@@ -32,6 +33,9 @@ class MyResult(te.Result):
 
     def __repr__(self):
         return f"RES={self.result_res}: {self.result_dict}"
+
+    def get(self, k: str, d=None):
+        return self.result_dict.get(k, d)
 
 class MyTaskConf(Conf):
     def __init__(self):
@@ -97,8 +101,14 @@ class MyTask(te.Task):
         conf.src_dir = os.path.abspath(conf.src_dir)  # get absolute path!!
         conf._env_prefix = env_prefix
         # --
-        self.run()
-        res = self.get_result()
+        return_code = self.run()
+        try:
+            res = self.get_result()
+        except:
+            import traceback
+            err_msg = traceback.format_exc()
+            res = MyResult(-1., {'err': err_msg})
+        res.result_dict['return_code'] = return_code
         return res
 
     def _get_gpus_from_env_prefix(self, ep: str):
@@ -119,29 +129,39 @@ class MyTask(te.Task):
         DEVICE_OPTION = "nn.device:0" if self._get_gpus_from_env_prefix(conf._env_prefix) else ""
         # --
         # special mode for convenience
+        success_flag = True
         if conf.do_test2:
             # test without logging?
             TEST2_CMD = f"cd {conf.run_dir}; {conf._env_prefix} PYTHONPATH={conf.src_dir}:$PYTHONPATH python3 {DEBUG_OPTION} -m {conf._module}.test {conf.conf_output} {test_base_opt} log_file: log_stderr:1 {DEVICE_OPTION} {conf.test_extras} {conf._test_extras}"
-            system(TEST2_CMD, pp=(not conf.quite))
+            success_flag = system(TEST2_CMD, pp=(not conf.quite), return_code=True)[-1] and success_flag
         else:
             # train?
             TRAIN_CMD = f"cd {conf.run_dir}; {conf._env_prefix} PYTHONPATH={conf.src_dir}:$PYTHONPATH python3 {conf.train_pyopts} {DEBUG_OPTION} -m {conf._module}.train {conf.conf_input} {train_base_opt} log_file:{_L_PRE}_train {PRINT_OPTION} {DEVICE_OPTION} conf_output:{conf.conf_output} {conf.train_extras} {conf._train_extras}"
             if conf.do_train:
-                system(TRAIN_CMD, pp=(not conf.quite))
+                success_flag = system(TRAIN_CMD, pp=(not conf.quite), return_code=True)[-1] and success_flag
             # test?
             TEST_CMD = f"cd {conf.run_dir}; {conf._env_prefix} PYTHONPATH={conf.src_dir}:$PYTHONPATH python3 {DEBUG_OPTION} -m {conf._module}.test {conf.conf_output} {test_base_opt} log_file:{_L_PRE}_test {PRINT_OPTION} {DEVICE_OPTION} {conf.test_extras} {conf._test_extras}"
             if conf.do_test:
-                system(TEST_CMD, pp=(not conf.quite))
+                success_flag = system(TEST_CMD, pp=(not conf.quite), return_code=True)[-1] and success_flag
+                # --
+                success_flag = self.do_extra_test() and success_flag
+                # --
             # test-all?
             if conf.do_test_all:
                 for extras in self.get_all_dt_opts():
                     # note: mainly input/output/log
                     _TMP_CMD = TEST_CMD + f" {extras}"
-                    system(_TMP_CMD, pp=True)
+                    success_flag = system(_TMP_CMD, pp=True, return_code=True)[-1] and success_flag
         # --
+        return success_flag
 
     # --
     # template methods
+
+    def do_extra_test(self):
+        # by default nothing to do!
+        success_flag = True
+        return success_flag
 
     def get_result(self):
         return MyResult(0., {})
@@ -169,8 +189,11 @@ class MainConf(Conf):
         self.max_count = -1
         self.tune_conf = te.TuneConf()
         self.task_conf: MyTaskConf = None
-        self.shuffle = True
+        self.shuffle = False
+        # further control of what to run
         self.task_sels = []  # only run sel ids
+        self.task_snum = 1  # split number
+        self.task_sidx = 0  # split id
 
 def main(tconf: MyTaskConf, args):
     conf = MainConf()
@@ -200,12 +223,18 @@ def main(tconf: MyTaskConf, args):
             orig_all_runs = list(all_runs)
         else:
             orig_all_runs = None
-        if len(conf.task_sels)>0:
+        if len(conf.task_sels) > 0:
             assert not conf.repeat and not conf.shuffle
             _sels = [int(z) for z in conf.task_sels]
             all_runs = list(all_runs)
             zlog(f"Select {len(_sels)}/{len(all_runs)}: {_sels}")
             all_runs = [all_runs[z] for z in _sels]
+        if conf.task_snum > 1:
+            assert not conf.repeat
+            assert conf.task_sidx < conf.task_snum
+            all_runs0 = all_runs
+            all_runs = [z for i, z in enumerate(all_runs0) if i%conf.task_snum==conf.task_sidx]
+            zlog(f"Select piece {conf.task_sidx}/{conf.task_snum}: {len(all_runs)}/{len(all_runs0)}")
         # --
         if not conf.repeat:
             _max_gid = 0 if len(orig_all_runs)==0 else max(z[0] for z in orig_all_runs)
@@ -217,8 +246,14 @@ def main(tconf: MyTaskConf, args):
         for gid, sel_idxes in all_runs:
             # note: override run_dir!!
             s_gid = _pads % gid
-            one = conf.task_conf.make_task(run_dir=f"run_{conf.tune_name}_{s_gid}", _id_str=f"{s_gid}:{sel_idxes}",
-                                           _train_extras=" ".join([a[i] for a,i in zip(mm, sel_idxes)]))
+            _all_extras = shlex.split(" ".join([a[i] for a,i in zip(mm, sel_idxes)]))
+            # note: special mark!!
+            _TEST_MARK = "TEST:"
+            _train_extras = shlex.join([z for z in _all_extras if not z.startswith(_TEST_MARK)])
+            _test_extras = shlex.join([z[len(_TEST_MARK):] for z in _all_extras if z.startswith(_TEST_MARK)])
+            one = conf.task_conf.make_task(
+                run_dir=f"run_{conf.tune_name}_{s_gid}", _id_str=f"{s_gid}:{sel_idxes}",
+                _train_extras=_train_extras, _test_extras=_test_extras)
             task_iter.append(one)
         x.main(task_iter)
     else:  # otherwise single run

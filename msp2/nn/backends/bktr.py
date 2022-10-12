@@ -3,7 +3,8 @@
 # using pytorch
 
 from typing import Union, SupportsFloat, List
-from msp2.utils import zwarn
+from collections import OrderedDict
+from msp2.utils import zwarn, zlog
 import traceback
 import torch
 from torch import nn, optim
@@ -46,6 +47,9 @@ class TrNIConf(NIConf):
         self.dist_world_size = 1  # really activate if >1
         self.dist_find_unused_parameters = False
         # --
+        # apex.amp
+        self.amp_opt_level = ''
+
 
 BKNIConf = TrNIConf
 
@@ -91,9 +95,51 @@ def ddp_rank():
 def is_main_process():
     return get_global_conf().dist_rank <= 0  # rank0 is the main one!!
 
+# --
+# from fairseq
+class ModuleProxyWrapper(torch.nn.Module):
+    def __init__(self, module: torch.nn.Module):
+        super().__init__()
+        assert hasattr(module, "module"), \
+            "ModuleProxyWrapper expects input to wrap another module"
+        self.module = module
+
+    def __getattr__(self, name):
+        """Forward missing attributes to twice-wrapped module."""
+        try:
+            # defer to nn.Module's logic
+            return super().__getattr__(name)
+        except AttributeError:
+            try:
+                # forward to the once-wrapped module
+                return getattr(self.module, name)
+            except AttributeError:
+                # forward to the twice-wrapped module
+                return getattr(self.module.module, name)
+
+    def state_dict(self, *args, **kwargs):
+        """Forward to the twice-wrapped module."""
+        return self.module.module.state_dict(*args, **kwargs)
+
+    def load_state_dict(self, *args, **kwargs):
+        """Forward to the twice-wrapped module."""
+        return self.module.module.load_state_dict(*args, **kwargs)
+
+    def forward(self, *args, **kwargs):
+        return self.module(*args, **kwargs)
+# --
+
 def wrap_ddp_model(model):
     conf = get_global_conf()
-    return DDP(model, device_ids=[get_global_conf().device], find_unused_parameters=conf.dist_find_unused_parameters)
+    if conf.amp_opt_level:
+        from apex.parallel import DistributedDataParallel as DDP
+    else:
+        from torch.nn.parallel import DistributedDataParallel as DDP0
+        DDP = lambda model: DDP0(model, device_ids=[conf.device], find_unused_parameters=conf.dist_find_unused_parameters)
+    # --
+    m1 = DDP(model)
+    m2 = ModuleProxyWrapper(m1)
+    return m2
 # --
 
 def refresh():
@@ -300,15 +346,47 @@ def get_inita_xavier_uniform(shape):
     return a
 # --
 
-def save_model(model: Module, path: str):
+def change_state_dict(d, cut_mods, del_mods):
+    # -- cut submodule ...
+    for cut_mod in cut_mods:
+        if cut_mod[-1] != '.':
+            cut_mod = cut_mod + "."
+        d2 = OrderedDict()
+        for k, v in d.items():
+            if k.startswith(cut_mod):
+                d2[k[len(cut_mod):]] = v
+        d = d2
+    # -- del submodule ...
+    for del_mod in del_mods:
+        d2 = OrderedDict()
+        for k, v in d.items():
+            if not k.startswith(del_mod):
+                d2[k] = v
+        d = d2
+    # --
+    return d
+
+def save_model(model: Module, path: str, cut_mods=(), del_mods=(), **kwargs):
     d = model.state_dict()
+    d = change_state_dict(d, cut_mods, del_mods)
     torch.save(d, path)
 
-def load_model(model: Module, path: str, strict=True, map_location=None):
+def load_model(model: Module, path: str, strict=None, map_location=None, cut_mods=(), del_mods=(), **kwargs):
     if map_location is None:
         map_location = DEFAULT_DEVICE
     d = torch.load(path, map_location=map_location)
-    model.load_state_dict(d, strict=strict)
+    d = change_state_dict(d, cut_mods, del_mods)
+    # load it
+    if strict is not None:
+        model.load_state_dict(d, strict=strict)
+    else:  # otherwise, first try strict, then relax if there are errors
+        try:
+            model.load_state_dict(d, strict=True)
+        except:
+            import traceback
+            zwarn(f"#== Error in strict loading:\n{traceback.format_exc()}\n#==")
+            model.load_state_dict(d, strict=False)
+    # --
 
 # =====
 # Part 2: functions
@@ -439,11 +517,13 @@ def simple_repeat_interleave(t, r: int, dim: int):
         return t1
 
 # others ...
+as_tensor = torch.as_tensor
 abs = torch.abs
 avg = torch.mean
 bilinear = F.bilinear  # (N,*,in1_features), (N,*,in2_features), (out_features, in1_features, in2_features), (out_features,) -> (N,*,out_features)
 binary_cross_entropy = F.binary_cross_entropy
 binary_cross_entropy_with_logits = F.binary_cross_entropy_with_logits
+cdist = torch.cdist
 clamp = torch.clamp
 chunk = torch.chunk
 cumsum = torch.cumsum
@@ -464,6 +544,7 @@ min = torch.min
 min_elem = torch.min
 masked_select = torch.masked_select
 matmul = torch.matmul
+norm = torch.norm
 pad = F.pad
 relu = F.relu
 reshape = torch.reshape
@@ -566,6 +647,14 @@ def category_sample(logprob, dim=-1, keep_dim=True):
         V, I = V.unsqueeze(-1), I.unsqueeze(-1)
     return V, I
 
+def multinomial_choice(prob_t, num_samples: int, replacement: bool):
+    input_shape = get_shape(prob_t)  # [*, L]
+    if len(input_shape) > 2:
+        prob_t = prob_t.view([np.prod(input_shape[:-1]), input_shape[-1]])
+    ret0 = torch.multinomial(prob_t, num_samples, replacement)
+    ret = ret0.view(input_shape[:-1] + [num_samples])
+    return ret
+
 def gather(t, idxes, dim=-1):
     idxes_t = input_idx(idxes)
     return torch.gather(t, dim, idxes_t)
@@ -603,7 +692,7 @@ def set_value(t, val, resize=False):
         #     src_shape, trg_shape = get_shape(t), get_shape(val)
         #     if src_shape != trg_shape:
         #         t.resize_(trg_shape)
-        t.set_(input_real(val))
+        t.set_(input_real(val).to(t.device))
 
 def get_cpu_tensor(t):
     return t.detach().cpu()
@@ -694,3 +783,10 @@ def go_detach(x, scale: float, is_training: bool):
     else:
         return x  # no need to detach if not training!
 # --
+
+def get_emb_with_initscale(num_embeddings: int, embedding_dim: int, initscale=1., **kwargs):
+    ret = nn.Embedding(num_embeddings, embedding_dim, **kwargs)
+    if initscale != 1:
+        with torch.no_grad():
+            ret.weight *= initscale
+    return ret

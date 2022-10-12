@@ -3,7 +3,7 @@
 # Trees for a sentence
 
 __all__ = [
-    "DepTree", "PhraseTree", "HeadFinder",
+    "DepTree", "PhraseTree", "HeadFinder", "DepSentStruct",
 ]
 
 # =====
@@ -11,6 +11,8 @@ __all__ = [
 
 from typing import List, Dict, Iterable, Union, Tuple
 import numpy as np
+from collections import defaultdict
+from msp2.utils import zwarn, Conf
 from .base import DataInstance, DataInstanceComposite, SubInfo
 from .helper import InDocInstance, InSentInstance
 from .field import PlainSeqField
@@ -34,6 +36,7 @@ class DepTree(InSentInstance):
         self._label_matrix: np.ndarray = None  # Arr[m,h] of int
         self._chs_lists: List[List[int]] = None  # List(len==m+1) of List[int]
         self._ranges: List = None  # List[(left, right)], len==m
+        self._fnode = None  # FNode
 
     def __len__(self):
         return len(self.seq_head)
@@ -41,7 +44,7 @@ class DepTree(InSentInstance):
     def __repr__(self):
         return f"DepTree(len={len(self)})"
 
-    def _clear_caches(self):
+    def clear_caches(self):
         self._depths = None
         self._dep_dists = None
         self._label_matrix = None
@@ -135,6 +138,17 @@ class DepTree(InSentInstance):
             self._ranges = ranges
         return self._ranges
 
+    @property
+    def fnode(self):
+        if self._fnode is None:
+            self._fnode = FNodeReader.get_reader().read_tree(self)
+        return self._fnode
+
+    # shortcut
+    def str_fnode(self, **kwargs):
+        from .helper2 import MyPrettyPrinter
+        return MyPrettyPrinter.str_fnode(self.sent, self.fnode, **kwargs)
+
     # other info
     # note: here all idxes has no +1 offset!! by default no including of the connecting point (common ancestor=0)!
     def get_spine(self, widx: int):
@@ -159,7 +173,7 @@ class DepTree(InSentInstance):
 
 # =====
 # phrase-based (constituency) tree
-# TODO(!)
+# todo(+N): maybe could use "FNode", but probably to unify all these in the next version ...
 class PhraseTree(InSentInstance):
     pass
 
@@ -243,3 +257,249 @@ class HeadFinder:
             shead_widx = self.find_shead_from_span(sent, hspan_widx, hspan_wlen)
             mention.set_span(shead_widx, 1, shead=True)
         # --
+
+# =====
+# a simple sentence manager derived from dep tree (based on UD)
+
+# "frame" node
+class FNode:
+    def __init__(self, l_type: str, d_label: str, widx: int):
+        self.l_type = l_type  # layer type
+        # --
+        self.l_label = None  # dep-label or head
+        self.d_label = d_label  # dep label
+        self.widx = widx  # anchored at where?
+        # --
+        self.par = None
+        self.chs = []
+        self.head_chs = []
+        self.label2chs = defaultdict(list)  # str->list: (deplab or head)
+        # --
+        self._caches = {}
+        # --
+
+    def __repr__(self):
+        return f"{self.l_type}[ch={len(self.chs)}]"
+
+    def add_ch(self, ch: 'FNode'):
+        _sort_key = (lambda x: x.widx)  # always sort them left2right
+        # --
+        ch.par = self
+        self.chs.append(ch)
+        self.chs.sort(key=_sort_key)
+        if ch.widx == self.widx or self.widx < 0:  # still self as head (always add root as head!)
+            self.head_chs.append(ch)
+            _l_label = 'head'
+        else:
+            _l_label = ch.d_label
+        ch.l_label = _l_label
+        self.label2chs[_l_label].append(ch)
+        self.label2chs[_l_label].sort(key=_sort_key)
+        # --
+        self._caches.clear()
+
+    @property
+    def head_span(self):
+        return self.get_span(def_inc=False)
+
+    @property
+    def full_span(self):
+        return self.get_span(def_inc=True)
+
+    # def_inc indicates by default include or not?
+    def get_span(self, inc_set=(), exc_set=(), def_inc=True):
+        _inc_set, _exc_set = set(inc_set), set(exc_set)
+        _key = "|".join([",".join(sorted(_inc_set)), ",".join(sorted(_exc_set)), 'Y' if def_inc else 'N'])
+        # --
+        ret = self._caches.get(_key)
+        if ret is None:
+            all_spans = []
+            in_chs = list(self.head_chs)  # note: copy!
+            if self.widx >= 0:
+                all_spans.append((self.widx, 1))  # at least head word!
+                for z in self.chs:
+                    if z.l_label in _exc_set:
+                        continue  # exclude
+                    elif z.l_label in _inc_set:
+                        in_chs.append(z)
+                    elif def_inc:
+                        in_chs.append(z)
+            else:  # special for root!
+                in_chs.extend(self.chs)
+            all_spans.extend([z.get_span(inc_set=inc_set, exc_set=exc_set, def_inc=def_inc) for z in in_chs])
+            ret = _merge_spans(all_spans)  # note: repeat ones do not matter since return one span!
+            # --
+            self._caches[_key] = ret
+        return ret
+
+    # visit
+    def visit(self, visitor, do_pre=True, do_post=False):
+        if do_pre:
+            visitor(self)
+        for ch in self.chs:
+            ch.visit(visitor, do_pre=do_pre, do_post=do_post)
+        if do_post:
+            visitor(self)
+        # --
+
+    # iter all
+    def iter_all(self):
+        yield self
+        for ch in self.chs:
+            yield from ch.iter_all()
+
+    # ancestor path
+    def get_ancestor_path(self, inc_self=False, top_down=True):
+        path = []
+        c = self if inc_self else self.par
+        while c is not None:
+            path.append(c)
+            c = c.par
+        if top_down:
+            path.reverse()
+        return path
+
+    def find_common_ancestor(self, other: 'FNode'):
+        path0 = self.get_ancestor_path(inc_self=True)
+        path1 = other.get_ancestor_path(inc_self=True)
+        common = []
+        for a,b in zip(path0, path1):
+            if a is b:  # note: exactly the same one!
+                common.append(a)
+        return common[-1]
+
+# helper for reading
+# --
+# some helpers
+def _sum_set(d, names):
+    if '*' in names:
+        ret = set(sum([list(z) for z in d.values()], []))
+    else:
+        ret = set()
+        for n in names:
+            ret.update(d[n])
+    return ret
+def _merge_spans(spans):
+    a = min([z[0] for z in spans])
+    b = max([z[0]+z[1] for z in spans])
+    return (a, b-a)
+# --
+class FNodeReader:
+    # --
+    _readers = {}
+    @staticmethod
+    def get_reader(*args, **kwargs):
+        _key = str(args + tuple([(k,v) for k,v in kwargs.items()]))
+        if _key not in FNodeReader._readers:
+            FNodeReader._readers[_key] = FNodeReader(*args, **kwargs)
+        return FNodeReader._readers[_key]
+    # --
+
+    def __init__(self):
+        self.udep_sets = {
+            'root': {'root'},
+            'loose': {'list', 'parataxis'},
+            'conj': {'conj'},
+            'core': {'nsubj', 'obj', 'iobj', 'csubj', 'ccomp', 'xcomp'},
+            'noncore': {'obl', 'vocative', 'expl', 'dislocated', 'advcl', 'advmod', 'discourse', 'aux', 'cop', 'mark'},
+            'nom': {'nmod', 'appos', 'nummod', 'acl', 'amod', 'det', 'clf', 'case'},
+            'mwe': {'fixed', 'flat', 'compound', 'goeswith', 'orphan', 'reparandum'},  # simply count them as mwe
+            'other': {'cc', 'punct', 'dep'},
+        }
+        self.udep_sets['pred'] = _sum_set(self.udep_sets, ['core', 'noncore'])
+        self.udep_sets['all'] = _sum_set(self.udep_sets, ['*'])  # all names!
+        # --
+        self.layer_rules = [  # what "layers" to put
+            'root', 'loose', 'conj', 'pred', 'nom', 'mwe',
+        ]
+        # --
+
+    def read_tree(self, tree: DepTree):
+        _sets = self.udep_sets
+        heads, labels = tree.seq_head.vals, tree.seq_label.vals
+        ch_lists = tree.chs_lists
+        # first check labels
+        labels = [z.split(":")[0].lower() for z in labels]
+        if any(z not in _sets['all'] for z in labels):
+            zwarn(f"Find non-UDv2 labels: {[z for z in labels if z not in _sets['all']]}")
+            labels = [(z if z in _sets['all'] else 'dep') for z in labels]
+        is_other = [(z in _sets['other']) for z in labels]
+        # --
+        def _read_node(_cur_idx, _cur_chs=None):
+            if _cur_chs is None:
+                _cur_chs = list(ch_lists[_cur_idx+1])  # +1 since ch_lists add ARTI-Root
+            # look for higher layers
+            _hit_layer = None
+            _hit_chs = []
+            for _layer in self.layer_rules:
+                _layer_set = _sets[_layer]
+                _hit_chs = [z for z in _cur_chs if labels[z] in _layer_set]
+                if len(_hit_chs) > 0:
+                    _hit_layer = _layer
+                    if _layer == 'pred':  # also collect punct here!
+                        _hit_chs = [z for z in _cur_chs if labels[z] in _layer_set or labels[z] == 'punct']
+                    break
+            # process them
+            _left, _right = [z for z in _hit_chs if z < _cur_idx], [z for z in _hit_chs if z > _cur_idx]
+            if _hit_layer is not None:
+                _bounds = [min(_left) if len(_left)>0 else -1, max(_right) if len(_right)>0 else len(labels)]
+            else:
+                _hit_layer = 'leaf'
+                _bounds = [_cur_idx, _cur_idx]
+            # greedily gather "other"
+            _other = [z for z in _cur_chs if is_other[z] and (z<_bounds[0] or z>_bounds[1])]
+            # recursively read nodes
+            _ret_node = FNode(_hit_layer, (labels[_cur_idx] if _cur_idx>=0 else 'root'), _cur_idx)
+            _strips = _left + _right + _other
+            if _hit_layer != 'leaf' and _cur_idx >= 0:  # no further down for arti-root
+                _remain_chs = set(_cur_chs).difference(_strips)
+                _head_node = _read_node(_cur_idx, sorted(_remain_chs))
+                _ret_node.add_ch(_head_node)
+            for z in _strips:
+                _sub_node = _read_node(z)
+                _ret_node.add_ch(_sub_node)
+            return _ret_node
+        # --
+        ret = _read_node(-1, None)
+        return ret
+
+# collections of the "fnodes"
+class DepSentStruct:
+    def __init__(self, tree: DepTree):
+        self.tree = tree
+        self.root: FNode = FNodeReader.get_reader().read_tree(tree)
+        # --
+        # mappings from tokens to nodes
+        self.widx2nodes = [[] for _ in range(len(tree))]  # bottom2up
+        # --
+        def _tmp_visit(_node):
+            if _node.widx >= 0:
+                self.widx2nodes[_node.widx].append(_node)
+        # --
+        self.root.visit(_tmp_visit, do_pre=False, do_post=True)
+        # --
+
+    # find the lowest node that contains the span
+    # upward_set: go up certain d_labels, exclude_set: excluding certain tokens, up_leaf: try go up leaf
+    def find_node(self, span, upward_set=None, exclude_set=None, up_leaf=True):
+        # find all nodes
+        all_nodes = []
+        for widx in range(span[0], span[0]+span[1]):
+            _node = self.widx2nodes[widx][0]  # lowest one (leaf)!
+            if upward_set is not None:
+                while _node.par is not None and _node.d_label in upward_set:
+                    _node = _node.par  # go upward!
+            if exclude_set is not None and _node.d_label in exclude_set:
+                continue  # exclude this node!
+            all_nodes.append(_node)
+        if len(all_nodes) == 0:
+            return None
+        else:
+            # find common ancestor
+            ret = all_nodes[0]
+            for other in all_nodes[1:]:
+                ret = ret.find_common_ancestor(other)
+            if up_leaf:  # try to go up than leaf!
+                while ret.l_type == 'leaf' and ret.par is not None and ret.par.widx == ret.widx:
+                    ret = ret.par
+            return ret

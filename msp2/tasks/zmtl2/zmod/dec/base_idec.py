@@ -165,12 +165,14 @@ class DSelector(BasicNode):
 
     def _forward_first(self, repr_t: BK.Expr, dsel_seq_info):
         _arange_t, _sel_t = dsel_seq_info.arange2_t, dsel_seq_info.dec_sel_idxes
-        ret = repr_t[_arange_t, _sel_t]  # first subtok
+        _ss_t = _sel_t.clamp(max=repr_t.shape[1]-1)  # avoid OOR
+        ret = repr_t[_arange_t, _ss_t]  # first subtok
         return ret
 
     def _forward_last(self, repr_t: BK.Expr, dsel_seq_info):
         _arange_t, _sel_t, _len_t = dsel_seq_info.arange2_t, dsel_seq_info.dec_sel_idxes, dsel_seq_info.dec_sel_lens
-        ret = repr_t[_arange_t, _sel_t+_len_t-1]  # last subtok
+        _ss_t = (_sel_t+_len_t-1).clamp(max=repr_t.shape[1]-1)  # avoid OOR
+        ret = repr_t[_arange_t, _ss_t]  # last subtok
         return ret
 
     # helper function: aggregate information for subtoks
@@ -184,7 +186,9 @@ class DSelector(BasicNode):
         _all_valids_t = (_tmp_arange_t < _len_t.unsqueeze(-1)).float()  # [*, dlen, M]
         _tmp_arange_t = _tmp_arange_t * _all_valids_t.long()  # note: pad as 0
         _all_idxes_t = _sel_t.unsqueeze(-1) + _tmp_arange_t  # [*, dlen, M]
-        _all_repr_t = repr_t[_arange_t.unsqueeze(-1), _all_idxes_t]  # [*, dlen, M, D]
+        # --
+        _ss_t = _all_idxes_t.clamp(max=repr_t.shape[1] - 1)  # avoid OOR
+        _all_repr_t = repr_t[_arange_t.unsqueeze(-1), _ss_t]  # [*, dlen, M, D]
         while len(BK.get_shape(_all_valids_t)) < len(BK.get_shape(_all_repr_t)):
             _all_valids_t = _all_valids_t.unsqueeze(-1)
         _all_repr_t = _all_repr_t * _all_valids_t

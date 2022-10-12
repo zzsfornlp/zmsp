@@ -338,7 +338,15 @@ class ZDecoderSrl(ZDecoder):
         return ret
 
     def predict(self, med: ZMediator, *args, **kwargs):
-        self.inferencer.predict(med)  # simple let the inference helper handle this!
+        # self.inferencer.predict(med)
+        try:
+            self.inferencer.predict(med)  # simple let the inference helper handle this!
+        except Exception as e:
+            zlog(f"Warn: seems error {e} in predicting, skip {med.ibatch.items}")
+            for item in med.ibatch.items:  # note: clear all the predictions in case there are partial results!
+                sent = item.center_sent
+                if sent is not None:
+                    self.ztask.prep_inst(sent, med.ibatch.dataset)
         return {}
 
     # --

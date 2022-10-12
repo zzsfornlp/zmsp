@@ -124,6 +124,8 @@ class Sent(DataInstanceComposite, InDocInstance):
         # externally set prev_sent and next_sent
         self._prev_sent = None
         self._next_sent = None
+        # tp-graph
+        self._tp_graph = None
 
     @classmethod
     def create(cls, words: List[str] = None, text: str = None, id: str = None, par: 'DataInstance' = None):
@@ -139,7 +141,7 @@ class Sent(DataInstanceComposite, InDocInstance):
         return f"SENT({self.id},L={len(self)})"
 
     def __len__(self):
-        return len(self.seq_word)
+        return len(self.seq_word) if self.seq_word is not None else 0
 
     def clear_caches(self):
         self._cached_toks = None
@@ -199,6 +201,16 @@ class Sent(DataInstanceComposite, InDocInstance):
 
     def get_tokens(self, start: int = 0, end: int = None):  # return all tokens
         return self.tokens[start:end]
+
+    def get_tp_graph(self, use_cache=True, **kwargs):
+        from .helper2 import SentTpGraph
+        if (not use_cache) or self._tp_graph is None:
+            res = SentTpGraph(self, **kwargs)
+            if use_cache:
+                self._tp_graph = res
+        else:
+            res = self._tp_graph
+        return res
 
     # =====
     # building/adding various components
@@ -348,6 +360,18 @@ class Token(InSentInstance):
         self._deplab: str = None
         self._htok: Token = None  # cached head tok
         self._chtoks: List[Token] = None  # cached children toks
+
+    def get_full_id(self, ret_str=False):
+        ret = (self.doc.id, self.sent.id, self.widx)
+        if ret_str:
+            ret = "/".join([str(z) for z in ret])
+        return ret
+
+    def get_indoc_id(self, ret_str=False):
+        ret = (self.sent.sid, self.widx) if self.sent.sid is not None else (self.widx, )
+        if ret_str:
+            ret = "/".join([str(z) for z in ret])
+        return ret
 
     @classmethod
     def create(cls, sent: Sent, widx: int, id: str = None, par: 'DataInstance' = None):
