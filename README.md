@@ -10,7 +10,7 @@ Hi, here is a probably useful repo for Structured Prediction tasks.
 
 - "A Survey of Active Learning for Natural Language Processing": [details](./msp2/docs/al4nlp/readme.md)
 
-- "Transfer Learning from Semantic Role Labeling to Event Argument Extraction with Template-based Slot Querying": [TODO](TODO)
+- "Transfer Learning from Semantic Role Labeling to Event Argument Extraction with Template-based Slot Querying": [details](./msp2/docs/srl2arg/readme.md)
 
 - "On the Benefit of Syntactic Supervision for Cross-lingual Transfer in Semantic Role Labeling": [details](./msp2/docs/srl_cl/readme.md)
 
