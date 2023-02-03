@@ -1,4 +1,12 @@
 Year,Title,Source,Link,Output,Task,Query,Structured,Cost,Model,Learning,Start,Stop,Others
+2022,Multi-task Active Learning for Pre-trained Transformer-based Models,ACL,https://aclanthology.org/2022.tacl-1.70,"Sequence_labeling,Complex_structured_prediction","NER,Parsing,Relation","Uncertainty,Disagreement",Full,-,-,-,-,-,Multiple_targets
+2022,Active Example Selection for In-Context Learning,ACL,https://aclanthology.org/2022.emnlp-main.622,Classification,Classification,"Uncertainty,Performance_prediction",-,-,-,Transfer_learning,-,-,-
+2022,Few-shot initializing of Active Learner via Meta-Learning,ACL,https://aclanthology.org/2022.findings-emnlp.80,Classification,Classification,"Uncertainty,Batch_diversity,Hybrid(integrated)",-,-,-,Transfer_learning,-,-,-
+2022,Low-resource Interactive Active Labeling for Fine-tuning Language Models,ACL,https://aclanthology.org/2022.findings-emnlp.235,Classification,Classification,"Uncertainty,Batch_diversity,Hybrid(multi_step)",-,Wait_time,-,-,-,-,-
+2022,COMET-QE and Active Learning for Low-Resource Machine Translation,ACL,https://aclanthology.org/2022.findings-emnlp.348,Generation,MT,Performance_prediction,-,-,-,-,-,-,-
+2022,Active Learning for Abstractive Text Summarization,ACL,https://aclanthology.org/2022.findings-emnlp.377,Generation,Others,"Uncertainty,Density,Discriminative",-,-,-,Semi_supervised,-,-,-
+2022,Multi-View Active Learning for Short Text Classification in User-Generated Data,ACL,https://aclanthology.org/2022.findings-emnlp.481,Classification,Classification,"Uncertainty,Disagreement",-,-,-,-,-,-,-
+2022,Evaluating Pre-Trained Sentence-BERT with Class Embeddings in Active Learning for Multi-Label Text Classification,ACL,https://aclanthology.org/2022.aacl-short.45,Classification,Classification,Density,-,-,-,-,-,-,-
 2022,Bigger Data or Fairer Data? Augmenting BERT via Active Sampling for Educational Text Classification,ACL,https://aclanthology.org/2022.coling-1.109,Classification,Others,"Uncertainty,Disagreement,Performance_prediction",-,-,-,-,-,-,-
 2022,AcTune: Uncertainty-aware Active Self-Training for Semi-Supervised Active Learning with Pretrained Language Models,ACL,https://aclanthology.org/2022.naacl-main.102,Classification,Classification,Uncertainty,-,-,-,Semi_supervised,-,-,-
 2022,Towards Computationally Feasible Deep Active Learning,ACL,https://aclanthology.org/2022.findings-naacl.90,"Classification,Sequence_labeling","Classification,NER",Uncertainty,-,Wait_time,Model_mismatch,-,-,-,-
@@ -7,6 +15,8 @@ Year,Title,Source,Link,Output,Task,Query,Structured,Cost,Model,Learning,Start,St
 2022,CrudeOilNews: An Annotated Crude Oil News Corpus for Event Extraction,ACL,https://aclanthology.org/2022.lrec-1.49,Complex_structured_prediction,Event,Uncertainty,-,-,-,-,-,-,-
 2022,Investigating Active Learning Sampling Strategies for Extreme Multi Label Text Classification,ACL,https://aclanthology.org/2022.lrec-1.490,Classification,Classification,"Uncertainty,Batch_diversity",-,-,-,-,-,-,-
 2022,FAMIE: A Fast Active Learning Framework for Multilingual Information Extraction,ACL,https://aclanthology.org/2022.naacl-demo.14,Sequence_labeling,"NER,Event","Uncertainty,Diversity",-,Wait_time,Model_mismatch,-,-,-,"Multiple_targets,Tools"
+2022,AfroLM: A Self-Active Learning-based Multilingual Pretrained Language Model for 23 African Languages,ACL,https://aclanthology.org/2022.sustainlp-1.11,"Classification,Sequence_labeling","Classification,NER",Others(special),-,-,-,Data_augmentation,-,-,-
+2022,An Efficient Active Learning Pipeline for Legal Text Classification,ACL,https://aclanthology.org/2022.nllp-1.32,Classification,Classification,"Uncertainty,Disagreement,Discriminative",-,-,-,Transfer_learning,Seed,-,-
 2022,Teaching Interactively to Learn Emotions in Natural Language,ACL,https://aclanthology.org/2022.hcinlp-1.6,Classification,Others,Uncertainty,-,-,-,-,-,-,-
 2022,Is More Data Better? Re-thinking the Importance of Efficiency in Abusive Language Detection with Transformers-Based Active Learning,ACL,https://aclanthology.org/2022.trac-1.7,Classification,Social,Uncertainty,-,-,-,-,-,-,Data_imbalance
 2022,Adapting Coreference Resolution Models through Active Learning,ACL,https://aclanthology.org/2022.acl-long.519,Complex_structured_prediction,Coreference,Uncertainty,Partial,Measurement,-,Transfer_learning,-,-,-
@@ -272,6 +282,8 @@ Year,Title,Source,Link,Output,Task,Query,Structured,Cost,Model,Learning,Start,St
 2009,Active Learning for Mention Detection: A Comparison of Sentence Selection Strategies,cs.CL,-,Sequence_labeling,NER,"Uncertainty,Disagreement",-,-,-,-,-,-,-
 2022,A Comparative Survey of Deep Active Learning,Others,-,Classification,Others,Others,-,-,-,-,-,-,-
 2022,Active Learning on Pre-trained Language Model with Task-Independent Triplet Loss,Others,-,"Classification,Complex_structured_prediction","Classification,Others",Diversity,-,-,-,-,-,-,-
+2021,Uncertainty-aware Active Learning for Optimal Bayesian Classifier ,Others,-,Classification,Classification,Performance_prediction,-,-,-,-,-,-,-
+2021,Diversity Enhanced Active Learning with Strictly Proper Scoring Rules,Others,-,Classification,Classification,"Performance_prediction,Diversity",-,-,-,-,-,-,-
 2021,Batch Active Learning at Scale,Others,-,Classification,Others,Hybrid(multi_step),-,Wait_time,-,-,-,-,-
 2021,DeepAL: Deep Active Learning in Python,Others,-,Others,Others,Others,-,-,-,-,-,-,Tools
 2021,Multi-Domain Active Learning: A Comparative Study,Others,-,Classification,Others,Others,-,-,-,-,-,-,-

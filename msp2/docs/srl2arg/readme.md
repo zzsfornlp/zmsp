@@ -2,11 +2,11 @@
 
 Hi, this describes our implementation for our EMNLP-22 paper: "Transfer Learning from Semantic Role Labeling to Event Argument Extraction with Template-based Slot Querying".
 
-Please refer to the paper for more details: [[paper]](TODO) [[bib]](TODO)
+Please refer to the paper for more details: [[paper]](https://aclanthology.org/2022.emnlp-main.169/)
 
 ### Repo
 
-When we were carrying out our experiments for this work, we used the repo at this commit [`here`](TODO). In later versions of this repo, there may be slight changes (for example, default hyper-parameter change or hyper-parameter name change).
+When we were carrying out our experiments for this work, we used the repo at this commit [`here`](https://github.com/zzsfornlp/zmsp/commit/e5da0ee640614b3420fd92bd2c704d060506f84f). In later versions of this repo, there may be slight changes (for example, default hyper-parameter change or hyper-parameter name change).
 
 Clone this repo:
 

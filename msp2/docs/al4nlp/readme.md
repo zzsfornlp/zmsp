@@ -2,6 +2,8 @@
 
 Here are some descriptions for the paper tables for our survey: "A Survey of Active Learning for Natural Language Processing".
 
+Please refer to the paper for more details: [[arxiv]](https://arxiv.org/abs/2210.10109) [[paper]](https://aclanthology.org/2022.emnlp-main.414/)
+
 ### Table
 
 Table file: [`table.csv`](./table.csv)
