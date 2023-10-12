@@ -6,7 +6,13 @@ Hi, here is a probably useful repo for Structured Prediction tasks.
 
 #### Related works:
 
-(* The following ones are using the current version of zmsp-[v2](./msp2).)
+(* The following ones are using the current version of zmsp-[vX](./mspx).)
+
+- "Data-efficient Active Learning for Structured Prediction with Partial Annotation and Self-Training": [details](./mspx/docs/al4sp/readme.md)
+
+-----
+
+(* The following ones are using the older version of zmsp-[v2](./msp2).)
 
 - "A Survey of Active Learning for Natural Language Processing": [details](./msp2/docs/al4nlp/readme.md)
 
