@@ -6,12 +6,12 @@ __all__ = [
     "Constants", "ZHelper", "ZObject", "ZResult", "AllIncSet", "ZArr",
 ]
 
-from typing import Dict, Callable, Type, Union, List, SupportsFloat, Iterable
+from typing import Dict, Callable, Type, Union, List, SupportsFloat, Iterable, Sequence
 import sys, re, os
 from collections import Counter
 from .log import zlog, zwarn
 from .reg import Registrable
-from .seria import Serializable, InfoField
+from .seria import Serializable
 from .system import zglob
 
 # some useful constant values
@@ -148,14 +148,18 @@ class ZHelper:
         # --
 
     @staticmethod
-    def yield_batches(stream, batch_size: int):
+    def yield_batches(stream, batch_size: int, batch_size_f=(lambda x: 1)):
+        cur_bs = 0
         ret = []
         for one in stream:
-            if len(ret) >= batch_size:
-                yield ret
+            if cur_bs >= batch_size:
+                if len(ret) > 0:
+                    yield ret
+                cur_bs = 0
                 ret = []
+            cur_bs += batch_size_f(one)
             ret.append(one)
-        if len(ret) >= 0:
+        if len(ret) > 0:  # remaining ones
             yield ret
 
     @staticmethod
@@ -174,13 +178,7 @@ class ZHelper:
         return ret
 
     @staticmethod
-    def check_hit_one(v, targets):
-        bools = [v==t for t in targets]
-        assert sum(bools) == 1
-        return bools
-
-    @staticmethod
-    def eval_ff(ff_str: str, default_args=None, globals=None, locals=None):
+    def eval_ff(ff_str: str, default_args="", globals=None, locals=None):
         ff_str = ff_str.strip()
         if default_args:
             if not ff_str.startswith("lambda "):
@@ -215,6 +213,115 @@ class ZHelper:
             ret[kk] = vv
         return ret
 
+    @staticmethod
+    def rec_getattr(obj, path, df=None):
+        # recursively get attribute
+        curr = obj
+        for p in path:
+            if curr is None:
+                return df
+            curr = getattr(curr, p, None)
+        return curr
+
+    @staticmethod
+    def get_choice(val, *choices):
+        res = tuple([val==z for z in choices])
+        assert sum(res) == 1, f"Error for not choosing only one option: {choices} -> {res}"
+        return res
+
+    @staticmethod
+    def get_check_all(vals, df):
+        if len(vals) == 0: return df
+        assert all(z==vals[0] for z in vals), f"Error for not consistent vals: {vals}"
+        return vals[0]
+
+    @staticmethod
+    def iter_fd(fd, use_tqdm=True, update_interval=1, description=""):
+        if use_tqdm:
+            from tqdm import tqdm
+            start = fd.tell()
+            end = fd.seek(0, os.SEEK_END)
+            fd.seek(start)
+            _accu = 0
+            with tqdm(total=end-start, disable=(not tqdm)) as pbar:
+                pbar.set_description(description)
+                _last = fd.tell()
+                line = fd.readline()
+                while line:
+                    yield line
+                    line = fd.readline()
+                    # --
+                    _accu += 1
+                    if _accu >= update_interval:
+                        _accu = 0
+                        _now = fd.tell()
+                        pbar.update(_now-_last)
+                        _last = _now
+                    # --
+        else:
+            yield from fd
+
+    @staticmethod
+    def get_np_type_from_name(name: str, df: Union[str, int]):
+        import numpy as np
+        # --
+        def _find_dtype():
+            for one in ["uint16", "uint32", "uint64", "int16", "int32", "int64"]:
+                for f0 in reversed(os.path.split(name)):
+                    for f1 in reversed(f0.split(".")):
+                        if one in f1:
+                            return one
+            return None
+        # --
+        _dtype = _find_dtype()
+        if _dtype is None:
+            _dtype = df if isinstance(df, str) else ("uint32" if df>=2**16 else "uint16")
+            dtype = getattr(np, _dtype)
+            zlog(f"Use default dtype {dtype} from hit={_dtype}, name={name}")
+        else:
+            dtype = getattr(np, _dtype)
+            zlog(f"Get dtype {dtype} from hit={_dtype}, name={name}")
+        return dtype
+
+    @staticmethod
+    def iter_from_fd(fd, tqdm_enabled=True):
+        if tqdm_enabled:
+            from tqdm import tqdm
+            from pathlib import Path
+            with tqdm(total=Path(fd.name).stat().st_size, disable=(not tqdm_enabled)) as pbar:
+                while True:
+                    line = fd.readline()
+                    if not line:
+                        break
+                    pbar.update(fd.tell() - pbar.n)
+                    yield line
+        else:
+            yield from fd
+
+    @staticmethod
+    def recursive_apply(item, f_target=None, f_modify=None, inplace=False):
+        if f_target is None:
+            f_target = (lambda x: False)
+        if f_modify is None:
+            f_modify = (lambda x: x)
+        # --
+        if f_target(item):
+            return f_modify(item)  # note: f_modify should always return things even if inplaced!
+        elif isinstance(item, dict):
+            if inplace:
+                for k in list(item.keys()):
+                    item[k] = ZHelper.recursive_apply(item[k], f_target=f_target, f_modify=f_modify, inplace=inplace)
+            else:
+                return {k: ZHelper.recursive_apply(v, f_target=f_target, f_modify=f_modify, inplace=inplace) for k, v in item.items()}
+        elif isinstance(item, (list, tuple)):
+            if inplace:
+                for ii in range(len(item)):
+                    item[ii] = ZHelper.recursive_apply(item[ii], f_target=f_target, f_modify=f_modify, inplace=inplace)  # will fail if tuple
+            else:
+                return type(item)([ZHelper.recursive_apply(z, f_target=f_target, f_modify=f_modify, inplace=inplace) for z in item])
+        else:
+            return item
+
 # useful general object
 @Registrable.rd('zobj')
 class ZObject(Serializable):
@@ -230,6 +337,20 @@ class ZObject(Serializable):
         for k, v in kwargs.items():
             setattr(self, k, v)
 
+    def assign_trg(self, trg, use_trg_names=True):
+        if isinstance(trg, (Callable, type)):
+            ret = trg()
+        else:  # directly use as instance
+            ret = trg
+        if use_trg_names:
+            for k in trg.__dict__.keys():
+                if hasattr(self, k):
+                    setattr(trg, k, getattr(self, k))
+        else:
+            for k, v in self.__dict__.items():
+                setattr(trg, k, v)
+        return ret
+
     def __getitem__(self, item):
         _sep = '...'  # note: easier accessing!
         if _sep in item:
@@ -238,6 +359,7 @@ class ZObject(Serializable):
         else:
             return self.__dict__[item]
 
+    def __setitem__(self, key, value): self.__dict__[key] = value
     def __contains__(self, item): return item in self.__dict__
     def __repr__(self): return str(self.__dict__)
     def keys(self): return self.__dict__.keys()
@@ -274,7 +396,7 @@ class ZResult(ZObject):
                 if vv is not None and isinstance(vv, ZResult):  # handle the recursive
                     des0[kk] = vv.to_str()
             des = ", ".join([f"\"{k}\"={v}" for k,v in des0.items()])
-        return f"ZResult({self.result:.4f}): {{{des}}}"
+        return f"ZResult({float(self):.4f}): {{{des}}}"
 
     @property
     def result(self): return getattr(self, ZResult.RES_KEY, Constants.REAL_PRAC_MIN)  # the larger the better
@@ -312,9 +434,11 @@ class ZArr(Serializable):
     def __repr__(self):
         return f"Zarr{self.arr}"
 
-    @classmethod
-    def _info_fields(cls):
-        return {'arr': InfoField(to_f=(lambda a: cls.arr2obj(a)), from_f=(lambda s: cls.obj2arr(s)))}
+    def spec_to_dict(self):
+        return {'arr': self.arr2obj(self.arr)}
+
+    def spec_from_dict(self, data: Dict):
+        return {'arr': self.obj2arr(data['arr'])}
 
     @staticmethod
     def arr2obj(arr):

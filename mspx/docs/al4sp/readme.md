@@ -2,6 +2,10 @@
 
 Hi, this describes our implementation for our work of active learning for structured prediction.
 
+Please refer to the paper for more details: [[arxiv]](https://arxiv.org/abs/2305.12634) [[paper]](https://aclanthology.org/2023.findings-emnlp.865/)
+
+### Repo
+When we were carrying out our experiments for this work, we used the repo at this commit [`here`](https://github.com/zzsfornlp/zmsp/commit/941c2722d3a18f39d8e19f6cb7e58694dc344463). In later versions of this repo, there may be slight changes (for example, default hyper-parameter change or hyper-parameter name change).
 
 Clone this repo:
 

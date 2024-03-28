@@ -13,14 +13,19 @@ import importlib
 # mainly storing extra info for each cls (allowing short cuts!)
 
 class Registrable:
+    """
+    This is the base class for all Registrable (for name-finding and meta info) classes.
+    Mainly contain two info: key -> cls & cls -> info
+    """
+
     # global storage
-    _cls2info: Dict[Union[Type, Callable], Dict] = {}  # key -> info
-    _key2cls: Dict[str, Union[Type, Callable]] = {}  # shortcuts
+    _key2cls: Dict[str, Union[Type, Callable]] = {}  # key -> cls
+    _cls2info: Dict[Union[Type, Callable], Dict] = {}  # cls -> info
 
     # --
     # class methods
 
-    # register a class
+    # add a key and other info to a cls
     @classmethod
     def reg(base_cls, T: Union[Type, Callable], key: str = None, **kwargs):
         if isinstance(T, type):
@@ -38,11 +43,11 @@ class Registrable:
             _info['Ks'].append(_key)
         _info.update(kwargs)
         if isinstance(T, type) and issubclass(T, Registrable):
-            T.special_reg(_key, **kwargs)
+            T.cls_special_reg(_key, **kwargs)  # type-specific actions for register!
         return T
 
     @classmethod
-    def special_reg(cls, key: str, **kwargs):
+    def cls_special_reg(cls, key: str, **kwargs):
         pass  # by default nothing to do
 
     # reg as decorator: directly use class type as constructor
@@ -101,6 +106,14 @@ class Registrable:
             # --
             _key = Registrable._form_key(base_cls, key)
             return Registrable._key2cls.get(_key, df)
+
+    @staticmethod
+    def key2info(base_cls, key: str, field=None, df=None):
+        cls = base_cls.key2cls(key, None)
+        if cls is None:
+            return df
+        else:
+            return cls.cls2info(field=field, df=df)
 
     # --
     # global static ones

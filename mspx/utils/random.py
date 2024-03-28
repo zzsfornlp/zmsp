@@ -15,6 +15,15 @@ class Random:
     _seeds = {}
 
     @staticmethod
+    def str2num(s: str, start=1):
+        one = start
+        div = (2 << 30)
+        for t in s:
+            one = one * ord(t) % div
+        one += 1
+        return one
+
+    @staticmethod
     def get_generator(task=''):
         g = Random._seeds.get(task, None)
         if g is None:
@@ -22,19 +31,19 @@ class Random:
                 Random.init(None)   # default
             one = np.random.randint(1, 10000)
             # casual init seed according to the task name
-            div = (2<<30)
-            for t in task:
-                one = one * ord(t) % div
-            one += 1
+            one = Random.str2num(task, start=one)
             g = np.random.RandomState(one)  # use it as seed
             Random._seeds[task] = g
         return g
 
     # separate one
     @staticmethod
-    def get_np_generator(seed: int = None):
+    def get_np_generator(seed: int = None, seed_str: str = None):
         if seed is None:
-            seed = Random.get_curr_seed()
+            if seed_str is not None:
+                seed = Random.str2num(seed_str)
+            else:  # use current default seed
+                seed = Random.get_curr_seed()
         return np.random.RandomState(seed)
 
     # init overall

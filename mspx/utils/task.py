@@ -163,7 +163,7 @@ class F1EvalEntry(Serializable):
         return self.p.details + self.r.details + (self.res, )
 
     def __float__(self): return float(self.res)
-    def __repr__(self): return f"{str(self.p)}; {str(self.r)}; {float(self):.4f}"
+    def __repr__(self): return f"P={str(self.p)}; R={str(self.r)}; F1={float(self):.4f}"
 
 # =====
 # About Stat Recording
@@ -234,6 +234,7 @@ class StatRecorder:
         self.special_values: [str, MyCounter] = {}  # special ones with MyCounter
         self.reset()
         # --
+        self.last_report_val = None
         if report_key and report_start_timer:  # start this one!
             x = self.timers[report_key]
         # --
@@ -265,8 +266,11 @@ class StatRecorder:
         # --
         if k is not None and k == self.report_key:
             _vv = self.plain_values[k]
-            if self.report_interval > 0 and _vv % self.report_interval == 0:
+            if self.last_report_val is None:
+                self.last_report_val = _vv
+            if self.report_interval > 0 and (_vv - self.last_report_val) >= self.report_interval:
                 self.summary('Process')
+            self.last_report_val = _vv
         # --
 
     # special record
@@ -288,10 +292,10 @@ class StatRecorder:
         for k, t in self.timers.items():
             r[f'_time_{k}'] = round(t.get_accu_time(), 2)
         if _report:
-            _t = self.timers[self.report_key]
-            zlog(f"{report}: {r} [{_t.get_accu_time():.2f}s]"
-                 f"[{(r.get(self.report_key,0)/_t.get_accu_time()):.2f}d/s]", timed=True)
-            _t.resume()
+            _count = r.get(self.report_key, 0)
+            _time = self.timers[self.report_key].get_accu_time()
+            zlog(f"{report}: {r} [{_time:.2f}s] [{(_count/_time):.2f}d/s]", timed=True)
+            # _t.resume()  # note: no need to resume here?
         return r
 
     def summary_special(self, k: str, **kwargs):

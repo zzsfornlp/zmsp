@@ -17,7 +17,7 @@ def system(cmd: str, pp=False, ass=False, popen=False, return_code=False):
         zlog(f"Executing cmd: {cmd}")
     if popen:
         try:
-            tmp_out = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+            tmp_out = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT, executable='/bin/bash')
             n = 0
             output = str(tmp_out.decode())  # byte->str
         except subprocess.CalledProcessError as grepexc:
@@ -101,7 +101,7 @@ def zglobs(pathnames: Iterable[str], err_act='warn', **kwargs):
     return ret
 
 # mkdir -p path
-def mkdir_p(path: str, err_act='warn'):
+def mkdir_p(path: str, err_act='warn', **kwargs):
     if os.path.exists(path):
         if os.path.isdir(path):
             return True
@@ -109,7 +109,7 @@ def mkdir_p(path: str, err_act='warn'):
         return False
     else:
         # os.mkdir(path)
-        os.makedirs(path)
+        os.makedirs(path, **kwargs)
         return True
 
 # auto mkdir

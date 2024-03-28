@@ -3,8 +3,9 @@
 # seria: save & load
 
 __all__ = [
-    "Serializable", "InfoField", "DEFAULT_INFO_FIELD",
-    "Serializer", "default_json_serializer", "default_pickle_serializer", "get_json_serializer",
+    "Serializable", "Serializer",
+    "default_json_serializer", "default_pickle_serializer", "get_json_serializer",
+    "JsonHelper", "default_json_helper",
 ]
 
 from typing import Type, Dict, Set, Union, Iterable, IO
@@ -15,154 +16,16 @@ from .file import zopen
 
 # =====
 # A class that is Serializable (to/from dict)
-# note: allow fine-grained control over fields
-# note: complex classes should specify save/load by themselves!
-
-"""
-# information for DataInstance's sub-components
-# - inner_type: the inner-most type for that field
-# - wrapper_type: the out type for that field, current only supports (list, dict)
-# - is_rec: is recursive?
-# - no_store_f: (lambda v, par: bool) if True, then no storage for "Serializable.to_dict"
-# - to_f/from_f: (lambda v: ...) -- further functions for (inner_)to/from
-"""
-class InfoField:
-    def __init__(self, inner_type: Type = None, wrapper_type: Type = None, is_rec=False,
-                 no_store_f=None, to_f=None, from_f=None):
-        assert inner_type is None or issubclass(inner_type, Serializable)
-        self.inner_type = inner_type  # actual type
-        assert wrapper_type is None or (wrapper_type in [list, dict])
-        self.wrapper_type = wrapper_type  # wrapping type
-        assert (not is_rec) or (wrapper_type is None)
-        self.is_rec = is_rec  # special recursive flag
-        if no_store_f == 'len0':  # a shortcut for len==0
-            no_store_f = (lambda v,p: len(v)==0)
-        self.no_store_f, self.to_f, self.from_f = no_store_f, to_f, from_f
-
-    # --
-    # inst -> dict
-
-    def to_dict(self, v):
-        # 1) field is None
-        if v is None:
-            return v
-        # 2) wrap/rec
-        if self.wrapper_type is not None:
-            return self.wrap_to_dict(v)
-        if self.is_rec:
-            return self.rec_to_dict(v)
-        # 3) obj
-        return self.inner_to_dict(v)
-
-    def inner_to_dict(self, v, add_end=False):
-        if self.to_f is not None:
-            v = self.to_f(v)
-        if isinstance(v, Serializable):
-            store_type = (self.inner_type is None) or (not isinstance(v, self.inner_type))
-            d = v.to_dict(store_type=store_type)
-            if add_end and (not store_type):
-                d['__e'] = 1  # extra ending mark!
-        else:
-            d = v
-        return d
-
-    def wrap_to_dict(self, v):
-        _wt = self.wrapper_type
-        if _wt is list:
-            d = [self.inner_to_dict(z) for z in v]
-        elif _wt is dict:
-            d = {k: self.inner_to_dict(z) for k,z in v.items()}
-        else:
-            raise NotImplementedError(f"Unsupported wrapper_type = {_wt}")
-        return d
-
-    def rec_to_dict(self, v):
-        if isinstance(v, list):
-            d = [self.rec_to_dict(z) for z in v]
-        elif isinstance(v, dict):
-            d = {k: self.rec_to_dict(z) for k,z in v.items()}
-        else:
-            d = self.inner_to_dict(v, add_end=True)
-        return d
-
-    # --
-    # inst <- dict
-
-    def from_dict(self, d, v0=None):
-        # 1) None
-        if d is None:
-            return d
-        # 2) wrap/vec
-        if self.wrapper_type is not None:
-            return self.wrap_from_dict(d, v0=v0)
-        if self.is_rec:
-            return self.rec_from_dict(d, v0=v0)
-        # 3) obj
-        return self.inner_from_dict(d, v0=v0)
-
-    def inner_from_dict(self, d, v0):
-        _cls = None
-        if isinstance(d, dict) and '__t' in d:  # first check stored type
-            _cls = Registrable.key2cls(d['__t'])
-            assert issubclass(_cls, Serializable)
-        elif self.inner_type is not None:  # then field-info
-            _cls = self.inner_type
-        elif isinstance(v0, Serializable):  # finally existing one
-            _cls = type(v0)
-        if _cls is None:
-            ret = d  # don't know the type!
-        else:
-            ret = _cls.create_from_dict(d)
-        if self.from_f is not None:
-            ret = self.from_f(ret)
-        return ret
-
-    def wrap_from_dict(self, d, v0):
-        _wt = self.wrapper_type
-        if _wt is list:
-            v = [self.inner_from_dict(z, v0) for z in d]
-        elif _wt is dict:
-            v = {k: self.inner_from_dict(z, v0) for k, z in d.items()}
-        else:
-            raise NotImplementedError(f"Unsupported wrapper_type = {_wt}")
-        return v
-
-    def rec_from_dict(self, d, v0):
-        v = d
-        if isinstance(d, dict) and ('__t' in d or '__e' in d):
-            v = self.inner_from_dict(d, v0)
-        else:
-            if isinstance(d, list):
-                v = [self.rec_from_dict(z, v0) for z in d]
-            elif isinstance(d, dict):
-                v = {k: self.rec_from_dict(z, v0) for k,z in d.items()}
-        return v
-
-# --
-# a default one
-DEFAULT_INFO_FIELD = InfoField()
-# --
 
 class Serializable(Registrable):
-    # specify field types; note: cls-method!
-    @classmethod
-    def info_fields(cls):
-        _cls_info = cls.cls2info()
-        _info = _cls_info.get("info_fields", None)  # check cached ones (safe to cache since cls-specific)
-        if _info is None:
-            _info = {}
-            for cl in reversed(cls.__mro__):  # collect in reverse order
-                if issubclass(cl, Serializable) and hasattr(cl, "_info_fields"):
-                    _info.update(cl._info_fields())
-            _cls_info["info_fields"] = _info  # store the cache
-        return _info
+    """
+    A class that supports to_dict and from_dict.
+    """
 
-    # to be overridden
-    @classmethod
-    def _info_fields(cls):
-        return {}  # str(field) -> InfoField
+    REC_MAX_LEVEL = 1  # max recursive level
+    KEY_TYPE = "__t"  # key for cls-key to store
 
-    # return the fields for seria save; note: obj-method!
+    # return the fields for seria save
     def seria_fields(self, store_all_fields=False) -> Iterable[str]:
         if store_all_fields:
             return list(self.__dict__.keys())
@@ -170,31 +33,47 @@ class Serializable(Registrable):
             # note: by default, all fields that does not start with "_"
             return [z for z in self.__dict__.keys() if not z.startswith("_")]
 
+    # specific ones to be overridden
+    def spec_to_dict(self):
+        return {}
+
+    def spec_from_dict(self, data: Dict):
+        return {}
+
+    # outside functions
     def to_dict(self, store_type=True, store_all_fields=False):  # inst to dict
         ret = {}
         if store_type:
-            ret["__t"] = self.cls2key()
-        info_fields = self.info_fields()
+            ret[Serializable.KEY_TYPE] = self.cls2key()
+        spec = self.spec_to_dict()
         for k in self.seria_fields(store_all_fields=store_all_fields):
-            _if = info_fields.get(k, DEFAULT_INFO_FIELD)
-            v = getattr(self, k)
-            if _if.no_store_f is not None:
-                if _if.no_store_f(v, self):
-                    continue  # no storage!
-            ret[k] = _if.to_dict(v)
+            if k in spec:  # directly use special ones!
+                ret[k] = spec[k]
+            else:
+                v = getattr(self, k)
+                ret[k] = self.rec_to_obj(v, store_type=store_type, store_all_fields=store_all_fields)
         return ret
 
-    def from_dict(self, data: Dict):  # dict to instance (modify/update inplace)
-        info_fields = self.info_fields()
+    def from_dict(self, data: Dict):  # dict to instance (modify/update inplace if items)
+        spec = self.spec_from_dict(data)
         for k, d in data.items():  # note: load those in the data
             if k.startswith("__"):
                 continue  # note: ignore special ones!
-            _if = info_fields.get(k, DEFAULT_INFO_FIELD)
-            v0 = getattr(self, k, None)
-            v = _if.from_dict(d, v0)
-            setattr(self, k, v)  # directly set it!
+            if k in spec:  # directly use special ones!
+                setattr(self, k, spec[k])
+            else:
+                v0 = getattr(self, k, None)
+                if v0 is not None and isinstance(v0, Serializable):
+                    v0.from_dict(d)
+                else:
+                    v1 = Serializable.rec_from_obj(d)
+                    setattr(self, k, v1)  # directly set it!
         self.finish_from_dict()
         return self
+
+    def to_file(self, file: str, **kwargs):
+        d = self.to_dict(**kwargs)
+        return default_json_serializer.to_file(d, file)
 
     # last step for building in "from_dict"
     def finish_from_dict(self):
@@ -219,13 +98,55 @@ class Serializable(Registrable):
     @classmethod
     def create_from_file(cls, file: str):  # shortcut
         d = default_json_serializer.from_file(file)
-        ret = cls.create_from_dict(d)
+        if isinstance(d, dict):
+            ret = cls.create_from_dict(d)
+        else:  # already ok using default_json_serializer
+            ret = d
         return ret
 
-    # shortcut!
     @staticmethod
     def create(data):
-        return DEFAULT_INFO_FIELD.from_dict(data)
+        cls_key = data.get(Serializable.KEY_TYPE, None)
+        if cls_key is None:
+            return data  # no cls!
+        else:
+            cls = Registrable.key2cls(cls_key)
+            return cls.create_from_dict(data)
+
+    # --
+    # seria helpers
+    @staticmethod
+    def rec_to_obj(obj, curr_level=0, **kwargs):
+        next_level = curr_level + 1
+        if isinstance(obj, Serializable):
+            return obj.to_dict(**kwargs)
+        elif curr_level >= Serializable.REC_MAX_LEVEL:
+            return obj  # no further rec!
+        elif isinstance(obj, (list, tuple)):
+            return type(obj)([Serializable.rec_to_obj(z, curr_level=next_level) for z in obj])
+        elif isinstance(obj, dict):
+            return type(obj)([(k, Serializable.rec_to_obj(z, curr_level=next_level)) for k, z in obj.items()])
+        else:  # simply return the object itself!
+            return obj
+
+    @staticmethod
+    def rec_from_obj(obj, curr_level=0):
+        next_level = curr_level + 1
+        if isinstance(obj, dict):
+            key = obj.get(Serializable.KEY_TYPE, None)
+            if key is not None:
+                cls = Registrable.key2cls(key)
+                return cls.create_from_dict(obj)
+            elif curr_level >= Serializable.REC_MAX_LEVEL:
+                return obj
+            else:
+                return type(obj)([(k, Serializable.rec_from_obj(z, curr_level=next_level)) for k, z in obj.items()])
+        elif curr_level >= Serializable.REC_MAX_LEVEL:
+            return obj
+        elif isinstance(obj, (list, tuple)):
+            return type(obj)([Serializable.rec_from_obj(z, curr_level=next_level) for z in obj])
+        else:
+            return obj
 
 # =====
 # io with json/pickle/...
@@ -255,7 +176,7 @@ class _JsonRW(_BaseRW):
     def _load(self, d):
         if self.cls is not None:
             return self.cls.create_from_dict(d)
-        else:  # note: use "create" instead of "rec_from_dict" here
+        else:  # note: use "create" shortcut
             return Serializable.create(d)
 
     # mainly forwarding
@@ -286,6 +207,10 @@ class _PickleRW(_BaseRW):
 class Serializer:
     def __init__(self, rw: _BaseRW):
         self.rw = rw
+
+    # open
+    def open(self, file: str, mode: str):
+        return self.rw.open(file, mode)
 
     # from or to files
     def from_file(self, fn_or_fd: Union[str, IO], **kwargs):
@@ -335,3 +260,41 @@ class Serializer:
 default_json_serializer = Serializer(_JsonRW(None))
 default_pickle_serializer = Serializer(_PickleRW())
 def get_json_serializer(cls: Type): return Serializer(_JsonRW(cls))
+
+# simpler json helpers
+class JsonHelper:
+    def from_jsonl(self, file):
+        with open(file) as fd:
+            for line in fd:
+                yield json.loads(line)
+
+    def from_json(self, file):
+        with open(file) as fd:
+            yield from json.load(fd)
+
+    def from_auto(self, file):
+        if file.endswith("jsonl"):
+            yield from self.from_jsonl(file)
+        elif file.endswith("json"):
+            yield from self.from_json(file)
+        else:
+            raise RuntimeError(f"UNK file format {file}")
+
+    def to_jsonl(self, file, ds):
+        with open(file, 'w') as fd:
+            for one in ds:
+                fd.write(f"{json.dumps(one, ensure_ascii=False)}\n")
+
+    def to_json(self, file, ds):
+        with open(file, 'w') as fd:
+            json.dump(ds, fd, ensure_ascii=False, indent=2)
+
+    def to_auto(self, file, ds):
+        if file.endswith("jsonl"):
+            self.to_jsonl(file, ds)
+        elif file.endswith("json"):
+            self.to_json(file, ds)
+        else:
+            raise RuntimeError(f"UNK file format {file}")
+
+default_json_helper = JsonHelper()

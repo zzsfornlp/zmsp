@@ -27,31 +27,38 @@ class Logger:
         return Logger._instance
 
     @staticmethod
-    def init(files: Iterable = (), level=0, use_magic_file=False, log_last=False, log_append=False):
+    def init(files: Iterable = (), level=0, use_magic_file=False, log_cached=False, log_append=False):
         s = "LOG-%s-%s.txt" % (platform.uname().node, '-'.join(time.ctime().split()[-4:]))
         s = '-'.join(s.split(':'))      # ':' raise error in Win
         log_files = [s] if use_magic_file else []
-        log_files.extend([f for f in files if (f is not None) and ((not isinstance(f, str)) or len(f)>0)])
+        log_files.extend([f for f in files if f])
         # --
         _old_instance = Logger._instance
         if _old_instance is None or log_files != _old_instance.log_files:
-            Logger._instance = Logger(log_files, level=level, log_last=log_last, log_append=log_append)
+            Logger._instance = Logger(log_files, level=level, log_cached=log_cached, log_append=log_append)
         else:
             zlog("Pass init to allow continue writing!!")
         # zlog("START!!", func="plain")
+        # also config for logging
+        logging.basicConfig(
+            format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
+            datefmt="%m/%d/%Y %H:%M:%S",
+            level=logging.INFO,
+        )
 
     # =====
-    def __init__(self, log_files: Iterable, level=0, log_last=False, log_append=False):
-        self.log_last = log_last
+    def __init__(self, log_files: Iterable, level=0, log_cached=False, log_append=False):
+        self.log_cached = log_cached
         self.log_append = log_append
         self.level = level
         self.fds = []
         self.log_files = []
-        self.cached_lines = []  # store them if log_last
+        self.cached_lines = []  # store them if log_cached
         # --
         self.add_log_files(log_files)  # add them
 
     def __del__(self):
+        self.flush_cached_logs()
         for f, fd in zip(self.log_files, self.fds):
             if isinstance(f, str):
                 fd.close()
@@ -59,25 +66,25 @@ class Logger:
     def __repr__(self):
         return f"Logger({self.log_files})"
 
-    def my_open(self, file: str):
-        mode = 'a' if (self.log_append or file.startswith(Logger.MAGIC_APP_CODE)) else 'w'
+    def my_open(self, file: str, mode=None):
+        if mode is None:
+            mode = 'a' if (self.log_append or file.startswith(Logger.MAGIC_APP_CODE)) else 'w'
         if file.startswith(Logger.MAGIC_APP_CODE):
             file = file[len(Logger.MAGIC_APP_CODE):]
         return zopen(file, mode=mode)
 
     def add_log_files(self, files):
-        log_files = list(files)
-        self.log_files.extend(log_files)
         # the managing of open files (except outside handlers like stdio) is by this one
-        for f in log_files:
+        for f in files:
             if isinstance(f, str):
-                if not self.log_last:
+                if not self.log_cached:
                     one_fd = self.my_open(f)
                 else:
                     one_fd = None
             else:  # should be already a fd
                 one_fd = f
             if one_fd:
+                self.log_files.append(f)
                 self.fds.append(one_fd)
         # --
 
@@ -97,18 +104,20 @@ class Logger:
             else:
                 ss = f"{head}{s}"
             for f in self.fds:
-                print(ss, end=end, file=f, flush=flush)
+                if (not self.log_cached) or (f is sys.stderr):
+                    print(ss, end=end, file=f, flush=flush)
+            if self.log_cached:
+                self.cached_lines.append(ss + end)
 
-    def flush_cached_logs(self, clear=False):
-        if self.log_last:  # write out logs!
+    def flush_cached_logs(self):
+        if self.log_cached and self.cached_lines:  # write out logs!
             for f in self.log_files:
                 zlog(f'Flush {len(self.cached_lines)} lines to {f}')
                 if isinstance(f, str):
-                    with self.my_open(f) as fd:
+                    with self.my_open(f, mode='a') as fd:  # do append!
                         for line in self.cached_lines:
                             fd.write(line)
-            if clear:  # by default no clear!
-                self.cached_lines.clear()
+            self.cached_lines.clear()
         # --
 
     # =====
@@ -139,7 +148,13 @@ def zfatal(ss=""):
     zlog(ss, func="fatal", timed=True, level=1)
     raise RuntimeError(ss)
 
-def zwarn(ss=""):
+_WARNING_SET = set()
+def zwarn(ss="", warn_once=False):
+    if warn_once:
+        import traceback
+        _stack = traceback.format_stack()
+        if _stack[-2] in _WARNING_SET: return
+        _WARNING_SET.add(_stack[-2])
     zlog(ss, func="warn", timed=True, level=1)
 
 def zcheck(v, s="", err_act='warn'):

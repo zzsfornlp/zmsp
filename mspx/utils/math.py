@@ -40,13 +40,12 @@ class MathHelper:
         return 1. / (1. + exps)
 
     @staticmethod
-    def upper_int(x):
-        y = int(x)
-        return y if x==y else y+1
-
-    @staticmethod
     def safe_div(x, y):
         return x if y==0 else x/y
+
+    @staticmethod
+    def up_div(x, y):
+        return (x + y - 1) // y
 
 # div number which can be used for eval
 @Registrable.rd('divN')

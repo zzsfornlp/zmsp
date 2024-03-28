@@ -10,11 +10,13 @@ from .math import *
 from .random import *
 from .reg import *
 from .seria import *
+from .stream import *
 from .system import *
 from .task import *
 from .utils import *
 
 import os
+import sys
 from typing import Union, Iterable, IO, List
 from sys import stderr, argv
 from platform import uname
@@ -38,12 +40,14 @@ class MspUtilsConf(Conf):
         self.log_files = []
         self.log_magic_file = False  # add magic file
         self.log_level = 0
-        self.log_last = False
+        self.log_cached = False
         self.log_append = False
         # random
         self.msp_seed = Random._init_seed
         # conf writing
         self.conf_output = ""  # if writing conf_output
+        # ignoring prefixes
+        self.ignored_prefixes = []  # ignoring prefixes
         # numpy
         self.np_raise = True
         # special conf base
@@ -53,7 +57,7 @@ class MspUtilsConf(Conf):
         # main dir
         self.zdir = ""
         # global cache dir
-        self.global_cache_dir = ""  # for transformers/datasets/...
+        self.global_cache_dir = "___cache"  # for transformers/datasets/...
 
 # Calling once at start, manually init after the auto one, could override the auto one
 def init(utils_conf: MspUtilsConf, extra_files: List=None):
@@ -69,7 +73,7 @@ def init(utils_conf: MspUtilsConf, extra_files: List=None):
     if extra_files is not None:
         flist.extend(extra_files)
     Logger.init(flist, level=utils_conf.log_level, use_magic_file=utils_conf.log_magic_file,
-                log_last=utils_conf.log_last, log_append=utils_conf.log_append)
+                log_cached=utils_conf.log_cached, log_append=utils_conf.log_append)
     Random.init(utils_conf.msp_seed)
     Timer.init()
     # numpy
@@ -79,6 +83,7 @@ def init(utils_conf: MspUtilsConf, extra_files: List=None):
     zlog(f"Start!! After manually init at {time.ctime()}")
     zlog(f"*cmd: {' '.join(argv)}", func="config")
     zlog(f"*system: {get_sysinfo()}", func="config")
+    check_env_info()
 
 # ====
 # init everything for mspx
@@ -87,10 +92,33 @@ def strip_quotes(args):
     ret = [a[1:-1] if (len(a)>2 and a.startswith("'") and a.endswith("'")) else a for a in args]
     return ret
 
-def init_everything(main_conf: Conf, args: Iterable[str], add_utils=True, add_nn=True, sbase_getter=None):
+def extra_args_for_mp(args, rank: int):
+    ext = []
+    if rank != 0:
+        ext.extend(["log_stderr:0", "log_magic_file:0", "conf_output:"])
+        log_file_item = None
+        for a in args:
+            if "log_file:" in a:
+                log_file_item = a
+        if log_file_item is not None:
+            ext.extend([f"{log_file_item}{rank}"])  # put into another file!
+    return ext
+
+def check_env_info():
+    res = {}
+    for key in ['LOCAL_RANK', 'RANK', 'WORLD_SIZE', 'CUDA_VISIBLE_DEVICES', 'MASTER_ADDR', 'MASTER_PORT']:
+        res[key] = os.environ.get(key)
+    zlog(f"ENV_INFO: ARGS = {sys.argv}, Env = {res}")
+
+def init_everything(main_conf: Conf, args: Iterable[str]=None, add_utils=True, add_nn=True, sbase_getter=None, rank=None):
+    if args is None:
+        args = sys.argv[1:]
     list_args = list(args)  # store it!
+    if rank is not None:
+        list_args.extend(extra_args_for_mp(list_args, rank))
     gconf = get_singleton_global_conf()
     # utils?
+    _ignored_prefixes = None
     if add_utils:
         # first we try to init a MspUtilsConf to allow logging!
         utils_conf = MspUtilsConf()
@@ -110,6 +138,7 @@ def init_everything(main_conf: Conf, args: Iterable[str], add_utils=True, add_nn
                 list_args = [list_args[0]] + sbase_args + list_args[1:]
             else:  # add to front!!
                 list_args = sbase_args + list_args
+        _ignored_prefixes = utils_conf.ignored_prefixes
         # --
     # nn?
     if add_nn:
@@ -117,12 +146,13 @@ def init_everything(main_conf: Conf, args: Iterable[str], add_utils=True, add_nn
         gconf.add_subconf("nn", BK.BKNIConf())
     # --
     # then actual init
-    all_argv = main_conf.update_from_args(list_args)
+    all_argv = main_conf.update_from_args(list_args, ignored_prefixes=_ignored_prefixes)
     # --
     # init utils
     if add_utils:
         # write conf?
-        if utils_conf.conf_output:
+        from mspx.nn import BK
+        if utils_conf.conf_output and (rank is None or BK.is_main_process()):
             with zopen(utils_conf.conf_output, 'w') as fd:
                 for k, v in all_argv.items():
                     # todo(note): do not save this one!!

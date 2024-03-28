@@ -37,10 +37,14 @@ class WithWrapper:
     def __enter__(self):
         if self.f_start is not None:
             self.f_start()
+        if self.item is not None and hasattr(self.item, "__enter__"):
+            self.item.__enter__()
         # return self if self.item is None else self.item
         return self.item
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.item is not None and hasattr(self.item, "__exit__"):
+            self.item.__exit__()
         if self.f_end is not None:
             self.f_end()
 
@@ -56,7 +60,7 @@ def zopen_withwrapper(fd_or_path: Union[str, IO], empty_std=False, **kwargs):
 
 # get msp's directory
 def dir_msp(absolute=False):
-    dir_name = os.path.dirname(os.path.abspath(__file__))  # msp2/utils
+    dir_name = os.path.dirname(os.path.abspath(__file__))  # msp?/utils
     dir_name2 = os.path.join(dir_name, "..")  # msp?
     if absolute:
         dir_name2 = os.path.abspath(dir_name2)

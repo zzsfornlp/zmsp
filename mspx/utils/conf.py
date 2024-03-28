@@ -3,7 +3,7 @@
 # conf: configuration
 
 __all__ = [
-    "Conf", "GlobalConf", "get_singleton_global_conf", "get_global_conf", "ConfItem",
+    "Conf", "GlobalConf", "get_singleton_global_conf", "get_global_conf", "get_global_cache_dir", "ConfItem",
     "ConfEntry", "ConfEntryGlob", "ConfEntryChoices", "ConfEntryCallback",
     "ConfEntryList", "ConfEntryDict", "ConfEntryTyped",
     "Configurable",
@@ -22,6 +22,7 @@ from .log import zlog, zwarn
 # conf composite
 
 # note: Conf is a special class that allow non-Serializable (un-resolved) components initially!!
+@Registrable.rd('conf')
 class Conf(Serializable):
     # --
     # common values
@@ -29,8 +30,8 @@ class Conf(Serializable):
     SEP_HIER = "."  # sep for hierarchies
     SEP_HIER2 = "__"  # marks of SEP in kwargs' keys
     SEP_LIST = ","  # splitting for list-entry
-    SEP_DICT_F = "::"  # splitting for dict-entry field
-    SEP_DICT_NV = ":"  # splitting for dict-entry key/value
+    SEP_DICT_F = ","  # splitting for dict-entry field
+    SEP_DICT_NV = "="  # splitting for dict-entry key/value
     MARK_CC = "--"  # marks for cmd-like later args & ending
     # --
 
@@ -72,34 +73,9 @@ class Conf(Serializable):
             new_v = val
         else:
             assert isinstance(val, str)
-            new_v = None
-            # case 1: specially dealing with List/Dict
-            if new_v is None:
-                # note: avoid the case for eval with a simple heurist: checking ends_pair
-                ends_pair = (val[0] + val[-1]) if len(val) > 0 else ""
-                needs_eval = (ends_pair in ["()", "[]", "{}"])
-                if not needs_eval:
-                    if isinstance(old_v, list):
-                        # get or guess element's type
-                        _list_item_type = (str if len(old_v)==0 else type(old_v[0]))
-                        new_v = ConfEntryList.list_convert(val, _list_item_type)
-                    elif isinstance(old_v, dict):  # simply make them str and convert specifically!
-                        _dict_item_type = (str if len(old_v)==0 else type(next(iter(old_v.values()))))
-                        new_v = ConfEntryDict.dict_convert(val, _dict_item_type)
-            # otherwise
-            if new_v is None:  # must be not assigned successfully by case 1
-                trg_type = type(old_v)
-                # case 2.-1: special one
-                if old_v is None:
-                    new_v = val
-                # case 2: special types for which directly using eval
-                elif issubclass(trg_type, (List, Dict)):
-                    new_v = eval(val)
-                # case 3: otherwise use trg_type
-                else:  # otherwise use trg_type as constructor
-                    new_v = ConfEntryTyped.typed_convert(val, trg_type)
-                if not isinstance(new_v, trg_type):
-                    zwarn(f"Possible type error when updating {self}/{k}={val}, trg={trg_type}, real={type(new_v)}")
+            new_v = Conf.typed_convert(val, old_v)
+            if not isinstance(new_v, type(old_v)):
+                zwarn(f"Possible type error when updating {self}/{k}={val}, trg={type(old_v)}, real={type(new_v)}")
         # set it!!
         self.__setattr__(k, new_v)
         return (old_v, new_v)
@@ -176,7 +152,33 @@ class Conf(Serializable):
         hit_full_name = defaultdict(list)
         for n, v in inputs:
             item_list = name_map.get(n, None)
-            if item_list is None or len(item_list)==0:
+            # --
+            if item_list is None:  # check special updating for ZObject
+                from mspx.utils import ZObject
+                _ns = n.rsplit(Conf.SEP_HIER, 1)
+                if len(_ns) == 2:
+                    n20, n21 = _ns
+                    item_list2 = name_map.get(n20, None)
+                    if item_list2 is not None and (_update_all or len(item_list2) == 1):
+                        for _item in item_list2:
+                            _obj = _item.value
+                            if isinstance(_obj, (ZObject, dict)):
+                                # note: no checking for full-name ...
+                                # old_v, new_v = getattr(_obj, n21, None), v
+                                # setattr(_obj, n21, new_v)
+                                old_v = _obj.get(n21)
+                                new_v = Conf.typed_convert(v, old_v)
+                                _obj[n21] = new_v
+                                if old_v != new_v:  # real update
+                                    good_ones.append(f"Update ZObject config '{n20}:{n21}={v}': {_item.full_path} = {old_v} -> {new_v}")
+                            else:
+                                bad_ones.append(f"Bad direct-assign entry (not ZObject): {n20} type={type(_obj)}")
+                        continue
+                # else:
+                #     bad_ones.append(f"Bad direct-assign entry (not split ZObject): {n}")
+                #     continue
+            # --
+            if item_list is None:
                 bad_ones.append(f"Unknown config {n}={v}")
                 continue
             if len(item_list) != 1 and not _update_all:
@@ -272,7 +274,7 @@ class Conf(Serializable):
             if k in kwargs:
                 one = kwargs[k]
                 if v0 is not None:  # also convert type!
-                    one = ConfEntryTyped.typed_convert(one, type(v0))
+                    one = Conf.typed_convert(one, v0)
             else:
                 one = v0
             ret.append(one)
@@ -284,9 +286,10 @@ class Conf(Serializable):
     @staticmethod
     def extend_args(args: List[str], quite=False):
         sep = Conf.SEP_NV
+        _mark_cc = Conf.MARK_CC
         # check first one
         args = list(args)
-        if len(args) > 0 and len(args[0].split(sep)) == 1:
+        if len(args) > 0 and len(args[0].split(sep)) == 1 and not args[0].startswith(_mark_cc):
             arg_file = args[0]
             if not quite:
                 zlog(f"Try to read config file from {args[0]}.", func="config")
@@ -317,24 +320,31 @@ class Conf(Serializable):
         # final processing
         ii = 0  # next one to process
         argv = OrderedDict()
-        _mark_cc = Conf.MARK_CC
         while ii < len(args):
             a = args[ii]
             ii += 1
             if a == _mark_cc: continue  # skip only mark_cc!
             fields = a.split(sep, 1)  # only split the first one
-            assert len(fields) == 2, "Strange config updating value"
-            k0, v0 = fields
+            k0 = fields[0]
+            if k0.startswith(_mark_cc):
+                assert len(fields) == 1, "Strange config updating value"
+                v0 = ""
+            else:
+                assert len(fields) == 2, "Strange config updating value"
+                k0, v0 = fields
             # --
-            # special formats for list "--p1.p2.key: ... --"
+            # special formats for list "--p1.p2.key: ... --" or "--KKK=VVV"
             if k0.startswith(_mark_cc):
                 assert v0 == ""
                 k0 = k0[len(_mark_cc):]
-                v0s = []
-                while ii < len(args) and (not args[ii].startswith(_mark_cc)):
-                    v0s.append(args[ii])
-                    ii += 1
-                v0 = Conf.SEP_LIST.join(v0s)  # note: simply join!
+                if '=' in k0:  # simply this one
+                    k0, v0 = k0.split('=', 1)
+                else:
+                    v0s = []
+                    while ii < len(args) and (not args[ii].startswith(_mark_cc)):
+                        v0s.append(args[ii])
+                        ii += 1
+                    v0 = Conf.SEP_LIST.join(v0s)  # note: simply join!
             # --
             if k0 in argv and not quite:
                 zwarn(f"Overwrite with config {k0} = {v0}")
@@ -342,10 +352,16 @@ class Conf(Serializable):
         return argv
 
     # from list of strings (the first one can be conf file)
-    def update_from_args(self, args: List[str], quite=False, check=True, add_global_key="G", validate=True):
+    def update_from_args(self, args: List[str], quite=False, check=True, add_global_key="G", validate=True, ignored_prefixes=None):
         if not quite:
             zlog(f"Update conf from args: {args}.", func="config")
         argv = Conf.extend_args(args, quite=quite)
+        if ignored_prefixes:
+            ignored_args = [z for z in argv.keys() if any(z.startswith(p) for p in ignored_prefixes)]
+            if ignored_args:
+                zwarn(f"Ignore confs with {ignored_prefixes}: {ignored_args}")
+            for k in ignored_args:
+                del argv[k]
         if add_global_key:
             assert not hasattr(self, add_global_key)
             setattr(self, add_global_key, get_singleton_global_conf())  # put in global conf to update!!
@@ -363,7 +379,8 @@ class Conf(Serializable):
     # --
     # note: name:type:args, :type:args, type
     def _callbak_parse(self, s: str):
-        _sep = Conf.SEP_DICT_NV
+        # _sep = Conf.SEP_DICT_NV
+        _sep = Conf.SEP_NV
         _parts = s.strip().split(_sep)
         if len(_parts) == 0:
             ret = []
@@ -373,53 +390,39 @@ class Conf(Serializable):
             ret = _parts
         return ret
 
-    # callback for a list of entries
-    def callback_entries(self, s: str, ff=None, T=None, **kwargs):
-        specs = ConfEntryList.list_convert(s, str)
-        ret = []
+    # callback for an entry or a list of entries
+    def callback_entry(self, s: str, ff=None, T=None, one_entry=True, **kwargs):
+        specs = s if one_entry else Conf.typed_convert(s, list)
         if T is None:
             T = Registrable
         if ff is None:  # ff to get conf
             ff = lambda *zargs: T.key2cls(zargs[0])(*zargs[1:])
+        # --
+        ret = []
+        unadd_cc = []  # cc that is not added!
         for spec in specs:
             _parts = self._callbak_parse(spec)
-            if _parts[0] == "":
-                _parts[0] = _parts[1]  # must be there!
-            _name = _parts[0]
-            # add it
-            assert not hasattr(self, _name)
-            cc = ff(*_parts[1:])
-            assert isinstance(cc, Conf)
-            if kwargs:
-                cc.direct_update(**kwargs)
-            setattr(self, _name, cc)
+            if len(_parts) > 0:  # ignore empty ones!
+                if _parts[0] == "":
+                    _parts[0] = _parts[1]  # must be there!
+                _name = _parts[0]
+                cc = ff(*_parts[1:])
+                assert isinstance(cc, Conf)
+                if kwargs:
+                    cc.direct_update(**kwargs)
+                if _name:  # add extra name
+                    assert _name and not hasattr(self, _name)
+                    setattr(self, _name, cc)
+                else:
+                    unadd_cc.append(cc)
             # --
             ret.append(_parts)
-        return ret
-
-    # one entry
-    def callback_entry(self, s: str, ff=None, T=None, df=None, **kwargs):
-        _sep = Conf.SEP_DICT_NV
-        if T is None:
-            T = Registrable
-        if ff is None:  # ff to get conf
-            ff = lambda *zargs: T.key2cls(zargs[0])(*zargs[1:])
         # --
-        _parts = self._callbak_parse(s)
-        if len(_parts) == 0:
-            return df
-        _name, _args = _parts[0], _parts[1:]
-        cc = ff(*_args)
-        assert isinstance(cc, Conf)
-        if kwargs:
-            cc.direct_update(**kwargs)
-        if _name == '':  # if no name, then simply this one itself!
-            return cc
-        else:  # add a new one
-            assert not hasattr(self, _name)
-            setattr(self, _name, cc)
-            return _parts
-        # --
+        if unadd_cc:
+            assert len(unadd_cc) == 1, f"Number of cc that is not added is larger than 1: {len(unadd_cc)}"
+            return unadd_cc[0]  # only one there!
+        else:
+            return ret
 
     # shortcut decorator (using Conf to do rd!)
     @classmethod
@@ -442,6 +445,44 @@ class Conf(Serializable):
     def get_base_conf_type(cls): return Conf
     @classmethod
     def get_base_node_type(cls): return Registrable
+    # --
+
+    # --
+    @staticmethod
+    def typed_convert(x: str, trg: Union[type, object], item_type=None):
+        if isinstance(trg, type):
+            trg = trg()  # make a concrete object!
+        trg_type = type(trg)
+        # check eval first
+        if isinstance(x, str):
+            ends_pair = (x[0] + x[-1]) if len(x) > 0 else ""
+            needs_eval = (ends_pair in ["()", "[]", "{}"])
+            if needs_eval:  # directly eval it!
+                val0 = eval(x)
+            else:
+                if isinstance(trg, list):
+                    T_item = item_type if len(trg)==0 else type(trg[0])
+                    val0 = [Conf.typed_convert(z, T_item) for z in x.split(Conf.SEP_LIST)] if len(x) > 0 else []
+                elif isinstance(trg, dict):
+                    val0 = OrderedDict()  # note: preserve the order!!
+                    if len(x) > 0:
+                        for z in x.split(Conf.SEP_DICT_F):
+                            k, v = z.split(Conf.SEP_DICT_NV, 1)
+                            T_item = item_type if (k not in trg) else type(trg[k])
+                            val0[k] = Conf.typed_convert(v, T_item)
+                elif isinstance(trg, bool):
+                    val0 = bool(int(x))  # todo(note): especially make "0" be False
+                elif trg is None:
+                    val0 = x
+                else:
+                    val0 = trg_type(x)
+        else:  # wait for final convert!
+            val0 = x
+        if isinstance(val0, trg_type) or (x is None) or (trg is None):  # cannot convert None!
+            ret = val0
+        else:  # final convert!
+            ret = trg_type(val0)
+        return ret
     # --
 
 # =====
@@ -480,6 +521,15 @@ def get_global_conf(path, df=None):
         curr = getattr(curr, p, None)
     return curr
 
+def get_global_cache_dir():
+    _path = get_global_conf(['utils', 'global_cache_dir'])
+    if _path:
+        _path = zglob1(_path)
+        _path = os.path.abspath(_path)
+    else:
+        _path = None
+    return _path
+
 # =====
 # helper class for updating
 class ConfItem:
@@ -488,12 +538,16 @@ class ConfItem:
         self.par_conf = par_conf
         self.key = key
 
+    @property
+    def value(self):  # return the value itself
+        return getattr(self.par_conf, self.key)
+
     # note: special entries to be pre-checked!
     def is_precheck_entry(self):
-        return isinstance(getattr(self.par_conf, self.key), (ConfEntryChoices, ConfEntryCallback))
+        return isinstance(self.value, (ConfEntryChoices, ConfEntryCallback))
 
     def realize_entry_choice(self):
-        setattr(self.par_conf, self.key, getattr(self.par_conf, self.key).get())
+        setattr(self.par_conf, self.key, self.value.get())
 
     def do_update(self, val):
         return self.par_conf._update_one(self.key, val)
@@ -518,14 +572,11 @@ class ConfEntryTyped(ConfEntry):
         self.type = type
 
     def convert(self, x: str):
-        return ConfEntryTyped.typed_convert(x, self.type)
+        return Conf.typed_convert(x, self.type)
 
     @staticmethod
     def typed_convert(x: str, T: Type):
-        if issubclass(T, bool):  # todo(note): especially make "0" be False
-            return T(int(x))
-        else:
-            return T(x)
+        return None
 
 # special glob with climbing up dirs
 class ConfEntryGlob(ConfEntry):
@@ -549,16 +600,7 @@ class ConfEntryList(ConfEntry):
         self.item_type = item_type
 
     def convert(self, x: str):
-        return ConfEntryList.list_convert(x, self.item_type)
-
-    @staticmethod
-    def list_convert(x: str, T: Type):
-        # try split and assign
-        try:
-            ret = [ConfEntryTyped.typed_convert(z, T) for z in x.split(Conf.SEP_LIST)] if len(x) > 0 else []
-        except:
-            ret = eval(x)
-        return ret
+        return Conf.typed_convert(x, list, item_type=self.item_type)
 
 class ConfEntryDict(ConfEntry):
     def __init__(self, item_type: Type, default: Dict):
@@ -566,20 +608,7 @@ class ConfEntryDict(ConfEntry):
         self.item_type = item_type
 
     def convert(self, x: str):
-        return ConfEntryDict.dict_convert(x, self.item_type)
-
-    @staticmethod
-    def dict_convert(x: str, T: Type):
-        # try split and assign
-        try:
-            ret = OrderedDict()  # note: preserve the order!!
-            if len(x) > 0:
-                for z in x.split(Conf.SEP_DICT_F):
-                    k, v = z.split(Conf.SEP_DICT_NV, 1)
-                    ret[k] = ConfEntryTyped.typed_convert(v, T)
-        except:
-            ret = eval(x)
-        return ret
+        return Conf.typed_convert(x, dict, item_type=self.item_type)
 
 # special entry with choices
 class ConfEntryChoices(ConfEntry):
@@ -608,7 +637,7 @@ class ConfEntryCallback(ConfEntry):
 
 # --
 class Configurable(Registrable):
-    def __init__(self, conf: Conf, **kwargs):
+    def __init__(self, conf: Conf = None, **kwargs):
         self.conf = self.setup_conf(conf, **kwargs)
         # --
 
@@ -616,7 +645,10 @@ class Configurable(Registrable):
     def setup_conf(self, conf: Conf, _no_copy=False, **kwargs):
         if conf is None:  # make a default one!
             conf_type = self.cls2info(field='C')
-            conf = conf_type()
+            if conf_type is None:
+                conf = Conf()  # simply use the base type
+            else:
+                conf = conf_type()
         elif not _no_copy:  # todo(note): always copy to local!
             from copy import deepcopy
             conf = deepcopy(conf)
